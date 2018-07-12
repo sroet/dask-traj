@@ -35,7 +35,7 @@ install:
 script:
   - export MPLBACKEND=PS
   - python -c "import dask_traj"
-  - py.test -vv --cov=contact_map --cov-report xml:cov.xml
+  - py.test -vv --cov=dask_traj --cov-report xml:cov.xml
 
 after_success:
   - coveralls
