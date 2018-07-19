@@ -4,4 +4,4 @@ class TestDaskTraj(object):
     def teardown(self):
         pass
     def test_init(self):
-        from dask_traj import DaskTraj
+        from dask_traj import Trajectory
