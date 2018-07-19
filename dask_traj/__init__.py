@@ -5,4 +5,4 @@ except ImportError:  # pragma: no cover
 
 __version__ = version.version
 
-from .dask_traj import DaskTraj
+from .dask_traj import Trajectory, load
