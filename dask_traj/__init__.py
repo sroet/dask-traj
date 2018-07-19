@@ -6,3 +6,5 @@ except ImportError:  # pragma: no cover
 __version__ = version.version
 
 from .dask_traj import Trajectory, load
+from .utils import ensure_type
+from .geometry import compute_distances
