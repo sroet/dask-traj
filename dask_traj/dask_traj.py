@@ -6,7 +6,6 @@ from mdtraj.utils import in_units_of, box_vectors_to_lengths_and_angles
 from mdtraj.core.trajectory import (open, _get_extension, _parse_topology,
                                     _TOPOLOGY_EXTS)
 from .utils import ensure_type
-from unittest.mock import patch
 # dictionary to tell what is actually returned by read per extension type
 # can consist of [xyz, time, unitcell_lengths, unitcell_angles,
 # unitcell_vectors]
@@ -75,7 +74,7 @@ def load(filename, chunks=10, **kwargs):
     #TODO: use this to construct unitcells
     # Pop out irelevant info
     uv = data.pop('unitcell_vectors')
-    traj = Trajectory(**data, topology=topology, delayed_objects=data)
+    traj = Trajectory(topology=topology, delayed_objects=data, **data)
     if uv is not None:
         traj.unitcell_vectors = uv
     return traj
