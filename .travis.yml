@@ -1,7 +1,7 @@
 language: python
 python:
   - '3.6'
-  - '3.7'
+  - '3.5'
 
 branches:
   only:
@@ -9,16 +9,16 @@ branches:
 
 env:
   global:
-    - CANONICAL_PYTHON="3.7"
+    - CANONICAL_PYTHON="3.6"
     - CANONICAL_MDTRAJ="release"
   matrix:
     - MDTRAJ="release"
     - MDTRAJ="dev"
 
-#matrix:
-#  exclude:
-#    - env: MDTRAJ="dev"
-#      python: "3.5"
+matrix:
+  exclude:
+    - env: MDTRAJ="dev"
+      python: "3.5"
 
 before_install:
   - echo "before install"
