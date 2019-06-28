@@ -4,8 +4,9 @@ import numpy as np
 import mdtraj
 from mdtraj.utils import in_units_of, box_vectors_to_lengths_and_angles
 from mdtraj.core.trajectory import (open, _get_extension, _parse_topology,
-                                    _TOPOLOGY_EXTS)
+                                    _TOPOLOGY_EXTS, _hash_numpy_array)
 from .utils import ensure_type
+from copy import deepcopy
 # dictionary to tell what is actually returned by read per extension type
 # can consist of [xyz, time, unitcell_lengths, unitcell_angles,
 # unitcell_vectors]
@@ -72,7 +73,7 @@ def load(filename, chunks=10, **kwargs):
                            **kwargs)
 
     #TODO: use this to construct unitcells
-    # Pop out irelevant info
+    # Pop out irrelevant info
     uv = data.pop('unitcell_vectors')
     traj = Trajectory(topology=topology, delayed_objects=data, **data)
     if uv is not None:
@@ -90,10 +91,11 @@ def load_chunks(filename, extension, chunk_size, chunks, **kwargs):
     results = []
     for chunk in chunks:
         frames = min(frames_left, chunk_size)
+        start = length-frames_left
         results.append(dask.delayed(read_chunk, pure=True)(filename,
                                                            extension,
                                                            frames,
-                                                           chunk))
+                                                           start))
         frames_left -= frames
 
     result_dict = build_result_dict(results, extension, length, chunk_size,
@@ -172,12 +174,12 @@ def get_unitcell(result_dict, length):
     return ul, ua, uv
 
 
-def read_chunk(filename, extension, chunk_size, chunk):
+def read_chunk(filename, extension, chunk_size, start):
     with open(filename) as f:
         # Get current possition
         pos = f.tell()
         # position we want
-        seek_pos = chunk_size*chunk
+        seek_pos = start
         rel_pos = seek_pos-pos
 
         f.seek(rel_pos, 1)
@@ -190,7 +192,8 @@ def read_chunk(filename, extension, chunk_size, chunk):
 
 class Trajectory(mdtraj.Trajectory):
     # TODO add other kwargs from MDtraj.trajectory
-    def __init__(self, xyz,  topology, delayed_objects, time=None, **kwargs):
+    def __init__(self, xyz,  topology, time=None, delayed_objects=None,
+                 **kwargs):
         dask.persist(**kwargs)
         super(Trajectory, self).__init__(xyz=xyz, topology=topology, **kwargs)
 
@@ -223,3 +226,67 @@ class Trajectory(mdtraj.Trajectory):
                             add_newaxis_on_deficient_ndim=True)
         self._xyz = value
         self._rmsd_traces = None
+
+    def join(self, other, check_topology=True,
+             discard_overlapping_frames=False):
+        """ This is a daskified version of md.Trajectory.join """
+
+        if isinstance(other, Trajectory):
+            other = [other]
+        if isinstance(other, list):
+            if not all(isinstance(o, Trajectory) for o in other):
+                raise TypeError('You can only join Trajectory instances')
+            if not all(self.n_atoms == o.n_atoms for o in other):
+                raise ValueError('Number of atoms in self (%d) is not equal '
+                                 'to number of atoms in other' %
+                                 (self.n_atoms))
+            if check_topology and not all(self.topology == o.topology
+                                          for o in other):
+                raise ValueError('The topologies of the Trajectories are not '
+                                 'the same')
+            if not all(self._have_unitcell == o._have_unitcell for o in other):
+                raise ValueError('Mixing trajectories with and without '
+                                 'unitcell')
+        else:
+            raise TypeError(
+                '`other` must be a list of Trajectory. You supplied %d' %
+                type(other))
+
+        trajectories = [self] + other
+        if discard_overlapping_frames:
+            for i in range(len(trajectories)-1):
+                # last frame of trajectory i
+                x0 = trajectories[i].xyz[-1]
+                # first frame of trajectory i+1
+                x1 = trajectories[i + 1].xyz[0]
+
+                # check that all atoms are within 2e-3 nm
+                # (this is kind of arbitrary)
+                if np.all(np.abs(x1 - x0) < 2e-3):
+                    trajectories[i] = trajectories[i][:-1]
+
+        # Only difference between original code and current code
+        xyz = da.concatenate([t.xyz for t in trajectories])
+
+        time = np.concatenate([t.time for t in trajectories])
+        angles = lengths = None
+        if self._have_unitcell:
+            angles = np.concatenate([t.unitcell_angles for t in trajectories])
+            lengths = np.concatenate([t.unitcell_lengths for
+                                      t in trajectories])
+
+        # use this syntax so that if you subclass Trajectory,
+        # the subclass's join() will return an instance of the subclass
+        return self.__class__(xyz, deepcopy(self._topology), time=time,
+                              unitcell_lengths=lengths,
+                              unitcell_angles=angles)
+
+    def __hash__(self):
+        ''' updated hash to use the name of the dask array'''
+        hash_value = hash(self.top)
+        # combine with hashes of arrays
+        hash_value ^= self._xyz.name
+        hash_value ^= _hash_numpy_array(self.time)
+        hash_value ^= _hash_numpy_array(self._unitcell_lengths)
+        hash_value ^= _hash_numpy_array(self._unitcell_angles)
+        return hash_value

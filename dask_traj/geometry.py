@@ -16,7 +16,6 @@ def _compute_distances_chunk(xyz, pairs, box=None, periodic=True, opt=True,
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np = True)
 
-
     if periodic and box is not None:
         if opt:
             out = np.empty((xyz.shape[0], pairs.shape[0]), dtype=np.float32)
@@ -53,16 +52,16 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         box = None
     lazy_results = []
     current_frame = 0
-    first_chunk = xyz.chunks[0][0]
     for frames in xyz.chunks[0]:
         chunk_size = (frames, atoms)
+        next_frame = current_frame+frames
         lazy_results.append(wrap_da(_compute_distances_chunk, chunk_size,
-                                   xyz=xyz[current_frame:frames],
+                                   xyz=xyz[current_frame:next_frame],
                                    pairs = pairs,
-                                   box=box[current_frame:frames],
+                                   box=box[current_frame:next_frame],
                                    orthogonal = orthogonal,
                                    **kwargs))
-        current_frame += frames
+        current_frame = next_frame
     max_result = da.concatenate(lazy_results)
     result = max_result[:length]
     return result
