@@ -24,3 +24,29 @@ class TestGeometry(object):
                       md_trj=self.md_traj,
                       funcname='compute_distances',
                       atom_pairs=c)
+
+    def test_compute_displacements(self):
+        c = list(itt.combinations(self.indices[:10], 2))
+        function_test(dask_trj=self.dask_traj,
+                      md_trj=self.md_traj,
+                      funcname='compute_displacements',
+                      atom_pairs=c)
+
+    def test_compute_center_of_mass(self):
+        function_test(dask_trj=self.dask_traj,
+                      md_trj=self.md_traj,
+                      funcname='compute_center_of_mass')
+
+    def test_compute_center_of_geometry(self):
+        function_test(dask_trj=self.dask_traj,
+                      md_trj=self.md_traj,
+                      funcname='compute_center_of_geometry')
+
+    def test_find_closest_contact(self):
+        a = self.indices[:10]
+        b = self.indices[10:20]
+        function_test(dask_trj=self.dask_traj,
+                      md_trj=self.md_traj,
+                      funcname='find_closest_contact',
+                      group1=a,
+                      group2=b)

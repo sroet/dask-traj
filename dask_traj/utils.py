@@ -117,3 +117,6 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
                 # check for equality
                 raise error
     return val
+
+def wrap_da(f, chunk_size, **kwargs):
+    return da.from_delayed(f(**kwargs), dtype=np.float32, shape=chunk_size)
