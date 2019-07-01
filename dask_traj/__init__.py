@@ -7,4 +7,4 @@ __version__ = version.version
 
 from .dask_traj import Trajectory, load
 from .utils import ensure_type
-from .geometry import compute_distances
+from .geometry import *
