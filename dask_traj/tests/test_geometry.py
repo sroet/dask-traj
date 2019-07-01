@@ -50,3 +50,10 @@ class TestGeometry(object):
                       funcname='find_closest_contact',
                       group1=a,
                       group2=b)
+
+    def test_compute_angles(self):
+        c = list(itt.combinations(self.indices[:10], 3))
+        function_test(dask_trj=self.dask_traj,
+                      md_trj=self.md_traj,
+                      funcname='compute_angles',
+                      angle_indices=c)
