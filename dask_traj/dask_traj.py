@@ -2,6 +2,7 @@ import dask
 import dask.array as da
 import numpy as np
 import mdtraj
+import os
 from mdtraj.utils import in_units_of, box_vectors_to_lengths_and_angles
 from mdtraj.core.trajectory import (open, _get_extension, _parse_topology,
                                     _TOPOLOGY_EXTS, _hash_numpy_array)
@@ -62,7 +63,7 @@ def load(filename, chunks=10, **kwargs):
     if extension not in _TOPOLOGY_EXTS:
         topology = _parse_topology(top)
 
-
+    filename = os.path.abspath(filename)
     length = len(open(filename))
     n_chunks = int(length/chunks)
     frames_left = length % chunks
