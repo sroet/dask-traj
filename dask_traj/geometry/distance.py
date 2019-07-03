@@ -10,6 +10,7 @@ import numpy as np
 @dask.delayed
 def _compute_distances_chunk(xyz, pairs, box=None, periodic=True, opt=True,
                              orthogonal=False):
+
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np=True)

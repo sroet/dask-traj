@@ -3,10 +3,12 @@ import dask.array as da
 import numpy as np
 import mdtraj
 import os
-from mdtraj.utils import in_units_of, box_vectors_to_lengths_and_angles
+from mdtraj.utils import in_units_of
 from mdtraj.core.trajectory import (open, _get_extension, _parse_topology,
                                     _TOPOLOGY_EXTS, _hash_numpy_array)
-from .utils import ensure_type
+from .utils import (ensure_type, box_vectors_to_lengths_and_angles,
+                    lengths_and_angles_to_box_vectors)
+
 from copy import deepcopy
 # dictionary to tell what is actually returned by read per extension type
 # can consist of [xyz, time, unitcell_lengths, unitcell_angles,
@@ -105,7 +107,8 @@ def load_chunks(filename, extension, chunk_size, chunks, **kwargs):
 
 def build_result_dict(results, extension, length, chunk_size, distance_unit):
     read_returns = file_returns[extension]
-    sample = results[0].compute()
+    # Persis the sample for quick building
+    sample = results[0].persist()
     result_dict = {key: [result[i] for result in results]
                    for i,key in enumerate(read_returns)}
     xyz = get_xyz(result_dict, length, distance_unit )
@@ -117,7 +120,7 @@ def build_result_dict(results, extension, length, chunk_size, distance_unit):
                      'unitcell_lengths': unit_cell[0],
                      'unitcell_angles': unit_cell[1],
                      'unitcell_vectors': unit_cell[2]}
-    return_dict = dask.compute(not_lazy_dict)[0]
+    return_dict = not_lazy_dict # dask.compute(not_lazy_dict)[0]
     return_dict['xyz'] = xyz
     return return_dict
 
@@ -196,6 +199,7 @@ class Trajectory(mdtraj.Trajectory):
     def __init__(self, xyz,  topology, time=None, delayed_objects=None,
                  **kwargs):
         dask.persist(**kwargs)
+        self._unitcell_vectors = None
         super(Trajectory, self).__init__(xyz=xyz, topology=topology, **kwargs)
 
 
@@ -227,6 +231,132 @@ class Trajectory(mdtraj.Trajectory):
                             add_newaxis_on_deficient_ndim=True)
         self._xyz = value
         self._rmsd_traces = None
+
+    @property
+    def _have_unitcell(self):
+        return ((self._unitcell_lengths is not None and
+                 self._unitcell_angles is not None) or
+                self._unitcell_vectors is not None)
+
+    @property
+    def unitcell_angles(self):
+        """Angles that define the shape of the unit cell in each frame.
+        Returns
+        -------
+        lengths : np.ndarray, shape=(n_frames, 3)
+            The angles between the three unitcell vectors in each frame,
+            ``alpha``, ``beta``, and ``gamma``. ``alpha' gives the angle
+            between vectors ``b`` and ``c``, ``beta`` gives the angle between
+            vectors ``c`` and ``a``, and ``gamma`` gives the angle between
+            vectors ``a`` and ``b``. The angles are in degrees.
+        """
+        if self._unitcell_angles is None:
+            self._calc_length_and_angles(self._unitcell_vectors)
+        return self._unitcell_angles
+
+    @unitcell_angles.setter
+    def unitcell_angles(self, value):
+        """Set the lengths that define the shape of the unit cell in each frame
+        Parameters
+        ----------
+        value : np.ndarray, shape=(n_frames, 3)
+            The angles ``alpha``, ``beta`` and ``gamma`` that define the
+            shape of the unit cell in each frame. The angles should be in
+            degrees.
+        """
+        self._unitcell_angles = ensure_type(value, np.float32, 2,
+            'unitcell_angles', can_be_none=True, shape=(len(self), 3),
+                warn_on_cast=False, add_newaxis_on_deficient_ndim=True)
+
+    @property
+    def unitcell_lengths(self):
+        """Lengths that define the shape of the unit cell in each frame.
+        Returns
+        -------
+        lengths : {np.ndarray, shape=(n_frames, 3), None}
+            Lengths of the unit cell in each frame, in nanometers, or None
+            if the Trajectory contains no unitcell information.
+        """
+        if self._unitcell_lengths is None:
+            self._calc_length_and_angles(self._unitcell_vectors)
+        return self._unitcell_lengths
+
+    @unitcell_lengths.setter
+    def unitcell_lengths(self, value):
+        """Set the lengths that define the shape of the unit cell in each frame
+        Parameters
+        ----------
+        value : np.ndarray, shape=(n_frames, 3)
+            The distances ``a``, ``b``, and ``c`` that define the shape of the
+            unit cell in each frame, or None
+        """
+        self._unitcell_lengths = ensure_type(value, np.float32, 2,
+            'unitcell_lengths', can_be_none=True, shape=(len(self), 3),
+            warn_on_cast=False, add_newaxis_on_deficient_ndim=True)
+
+    #TODO:Add unitcell_vectors
+    @property
+    def unitcell_vectors(self):
+        if self._unitcell_vectors is None:
+            return self._calc_unitcell_vectors()
+        else:
+            return self._unitcell_vectors
+
+    def _calc_unitcell_vectors(self):
+        """The vectors that define the shape of the unit cell in each frame
+        Returns
+        -------
+        vectors : np.ndarray, shape(n_frames, 3, 3)
+            Vectors defining the shape of the unit cell in each frame.
+            The semantics of this array are that the shape of the unit cell
+            in frame ``i`` are given by the three vectors, ``value[i, 0, :]``,
+            ``value[i, 1, :]``, and ``value[i, 2, :]``.
+        """
+        if self.unitcell_lengths is None or self.unitcell_angles is None:
+            return None
+
+
+        v1, v2, v3 = lengths_and_angles_to_box_vectors(
+            self._unitcell_lengths[:, 0],  # a
+            self._unitcell_lengths[:, 1],  # b
+            self._unitcell_lengths[:, 2],  # c
+            self._unitcell_angles[:, 0],   # alpha
+            self._unitcell_angles[:, 1],   # beta
+            self._unitcell_angles[:, 2],   # gamma
+        )
+        return da.swapaxes(da.dstack((v1, v2, v3)), 1, 2)
+
+    @unitcell_vectors.setter
+    def unitcell_vectors(self, vectors):
+        self._unitcell_vectors = vectors
+
+    def _calc_length_and_angles(self, vectors):
+        """Set the three vectors that define the shape of the unit cell
+        Parameters
+        ----------
+        vectors : tuple of three arrays, each of shape=(n_frames, 3)
+            The semantics of this array are that the shape of the unit cell
+            in frame ``i`` are given by the three vectors, ``value[i, 0, :]``,
+            ``value[i, 1, :]``, and ``value[i, 2, :]``.
+        """
+        if vectors is None:# or da.all(abs(vectors) < 1e-15):
+            self._unitcell_lengths = None
+            self._unitcell_angles = None
+            return
+
+        if not len(vectors) == len(self):
+            raise TypeError('unitcell_vectors must be the same length as '
+                            'the trajectory. you provided %s' % str(vectors))
+
+        v1 = vectors[:, 0, :]
+        v2 = vectors[:, 1, :]
+        v3 = vectors[:, 2, :]
+        a, b, c, alpha, beta, gamma = box_vectors_to_lengths_and_angles(v1, v2, v3)
+
+        self._unitcell_lengths = da.vstack((a, b, c)).T
+        self._unitcell_angles = da.vstack((alpha, beta, gamma)).T
+
+
 
     def join(self, other, check_topology=True,
              discard_overlapping_frames=False):
