@@ -50,15 +50,20 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         orthogonal = np.allclose(traj.unitcell_angles, 90)
     else:
         box = None
+        orthogonal = False
     lazy_results = []
     current_frame = 0
     for frames in xyz.chunks[0]:
         chunk_size = (frames, atoms)
         next_frame = current_frame+frames
+        if box is not None:
+            current_box= box[current_frame:next_frame]
+        else:
+            current_box = None
         lazy_results.append(wrap_da(_compute_distances_chunk, chunk_size,
                                     xyz=xyz[current_frame:next_frame],
                                     pairs=pairs,
-                                    box=box[current_frame:next_frame],
+                                    box=current_box,
                                     orthogonal=orthogonal,
                                     **kwargs))
         current_frame = next_frame
@@ -113,15 +118,20 @@ def compute_displacements(traj, atom_pairs, periodic=True, **kwargs):
         orthogonal = np.allclose(traj.unitcell_angles, 90)
     else:
         box = None
+        orthogonal = False
     lazy_results = []
     current_frame = 0
     for frames in xyz.chunks[0]:
         chunk_size = (frames, atoms, 3)
         next_frame = current_frame+frames
+        if box is not None:
+            current_box= box[current_frame:next_frame]
+        else:
+            current_box = None
         lazy_results.append(wrap_da(_compute_displacements_chunk, chunk_size,
                                     xyz=xyz[current_frame:next_frame],
                                     pairs=pairs,
-                                    box=box[current_frame:next_frame],
+                                    box=current_box,
                                     orthogonal=orthogonal,
                                     **kwargs))
         current_frame = next_frame
