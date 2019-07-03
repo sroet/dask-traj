@@ -294,13 +294,11 @@ class Trajectory(mdtraj.Trajectory):
             'unitcell_lengths', can_be_none=True, shape=(len(self), 3),
             warn_on_cast=False, add_newaxis_on_deficient_ndim=True)
 
-    #TODO:Add unitcell_vectors
     @property
     def unitcell_vectors(self):
         if self._unitcell_vectors is None:
-            return self._calc_unitcell_vectors()
-        else:
-            return self._unitcell_vectors
+            self._unitcell_vectors = self._calc_unitcell_vectors()
+        return self._unitcell_vectors
 
     def _calc_unitcell_vectors(self):
         """The vectors that define the shape of the unit cell in each frame

@@ -58,7 +58,7 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         chunk_size = (frames, atoms)
         next_frame = current_frame+frames
         if box is not None:
-            current_box= box[current_frame:next_frame]
+            current_box = box[current_frame:next_frame]
         else:
             current_box = None
         lazy_results.append(wrap_da(_compute_distances_chunk, chunk_size,
@@ -126,7 +126,7 @@ def compute_displacements(traj, atom_pairs, periodic=True, **kwargs):
         chunk_size = (frames, atoms, 3)
         next_frame = current_frame+frames
         if box is not None:
-            current_box= box[current_frame:next_frame]
+            current_box = box[current_frame:next_frame]
         else:
             current_box = None
         lazy_results.append(wrap_da(_compute_displacements_chunk, chunk_size,
