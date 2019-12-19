@@ -9,6 +9,7 @@ import numpy as np
 @dask.delayed
 def _compute_angles_chunk(xyz, triplets, box=None, periodic=True,
                           opt=True, orthogonal=False):
+    """compute the angles for a single chunk"""
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np=True)
@@ -26,6 +27,27 @@ def _compute_angles_chunk(xyz, triplets, box=None, periodic=True,
 
 
 def compute_angles(traj, angle_indices, periodic=True, **kwargs):
+    """ Daskified version of mdtraj.compute_angles().
+
+    This mimics py:method:`mdtraj.compute_angles()` but returns the answer
+    as a py:class:`dask.array` object
+
+    Parameters
+    ----------
+    traj : :py:class:`dask_traj.Trajectory`
+        The trajectory to compute the angles for.
+    angle_indices : array of shape(any, 3)
+        The indices for which to compute an angle.
+    periodic : bool
+        Wether to use the periodc boundary during the calculation.
+
+    Returns
+    -------
+    angles : dask.array, shape(n_frames, angle_indices)
+        Dask array with the delayed calculated angle for each item in
+        angle_indices for each frame.
+    """
+
     xyz = traj.xyz
     length = len(xyz)
     atoms = len(angle_indices)
@@ -70,6 +92,7 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
 
 
 def _angle(xyz, triplets, periodic, out):
+    """Delayed version of the _angle function of mdtraj"""
     ix01 = triplets[:, [1, 0]]
     ix21 = triplets[:, [1, 2]]
 

@@ -165,6 +165,9 @@ def build_result_dict(results, extension, length, chunk_size, distance_unit):
     """
 
     read_returns = file_returns[extension]
+    if len(read_returns) == 0:
+        raise NotImplementedError(
+            "{} files are not yet supported".format(extension))
 
     # Persis the sample for quick building
     _ = results[0].persist()
@@ -368,6 +371,18 @@ class Trajectory(mdtraj.Trajectory):
         self._unitcell_vectors = None
         super(Trajectory, self).__init__(xyz=xyz, topology=topology, **kwargs)
 
+    def to_mdtraj(self):
+        """Converts self to an mdtraj.Trajectory"""
+        self.__class__ = mdtraj.Trajectory
+
+        self.xyz = np.asarray(self.xyz)
+
+        if self._have_unitcell:
+            self.unitcell_lengths = np.asarray(self.unitcell_lengths)
+            self.unitcell_angles = np.asarray(self.unitcell_angles)
+            # We don't set the vectors here as they are calculated in
+            # mdtraj.Trajectory anyway
+
     @property
     def xyz(self):
         """Cartesian coordinates of each atom in each simulation frame
@@ -405,7 +420,7 @@ class Trajectory(mdtraj.Trajectory):
         """Angles that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : np.ndarray, shape=(n_frames, 3)
+        lengths : dask.array, shape=(n_frames, 3)
             The angles between the three unitcell vectors in each frame,
             ``alpha``, ``beta``, and ``gamma``. ``alpha' gives the angle
             between vectors ``b`` and ``c``, ``beta`` gives the angle between
@@ -421,7 +436,7 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : np.ndarray, shape=(n_frames, 3)
+        value : dask.ndarray, shape=(n_frames, 3)
             The angles ``alpha``, ``beta`` and ``gamma`` that define the
             shape of the unit cell in each frame. The angles should be in
             degrees.
@@ -438,7 +453,7 @@ class Trajectory(mdtraj.Trajectory):
         """Lengths that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : {np.ndarray, shape=(n_frames, 3), None}
+        lengths : {dask.array, shape=(n_frames, 3), None}
             Lengths of the unit cell in each frame, in nanometers, or None
             if the Trajectory contains no unitcell information.
         """
@@ -451,7 +466,7 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : np.ndarray, shape=(n_frames, 3)
+        value : dask.array, shape=(n_frames, 3)
             The distances ``a``, ``b``, and ``c`` that define the shape of the
             unit cell in each frame, or None
         """
@@ -465,6 +480,14 @@ class Trajectory(mdtraj.Trajectory):
 
     @property
     def unitcell_vectors(self):
+        """vectors that define the shape of the unit cell in each frame.
+        Returns
+        -------
+        vectors : {dask.array, shape=(n_frames, 3), None}
+            Vecotors of the unit cell in each frame, in nanometers, or None
+            if the Trajectory contains no unitcell information.
+        """
+
         if self._unitcell_vectors is None:
             self._unitcell_vectors = self._calc_unitcell_vectors()
         return self._unitcell_vectors
@@ -526,7 +549,7 @@ class Trajectory(mdtraj.Trajectory):
 
     def join(self, other, check_topology=True,
              discard_overlapping_frames=False):
-        """ This is a daskified version of md.Trajectory.join """
+        """This is a daskified version of md.Trajectory.join()"""
 
         if isinstance(other, Trajectory):
             other = [other]
@@ -579,7 +602,7 @@ class Trajectory(mdtraj.Trajectory):
                               unitcell_angles=angles)
 
     def __hash__(self):
-        ''' updated hash to use the name of the dask array'''
+        '''Updated hash function to use the name of the dask array'''
         hash_value = hash(self.top)
         # combine with hashes of arrays
         hash_value ^= self._xyz.name

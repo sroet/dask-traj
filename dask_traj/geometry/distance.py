@@ -10,11 +10,12 @@ import numpy as np
 @dask.delayed
 def _compute_distances_chunk(xyz, pairs, box=None, periodic=True, opt=True,
                              orthogonal=False):
-
+    """Compute distances for a single chunk"""
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np=True)
-
+    # Cast orthogonal to bool (incase we get a delayed bool)
+    orthogonal = bool(orthogonal)
     if periodic and box is not None:
         if opt:
             out = np.empty((xyz.shape[0], pairs.shape[0]), dtype=np.float32)
@@ -48,7 +49,6 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         box = ensure_type(traj.unitcell_vectors, dtype=np.float32, ndim=3,
                           name='unitcell_vectors', shape=(len(xyz), 3, 3),
                           warn_on_cast=False)
-        orthogonal = np.allclose(traj.unitcell_angles, 90)
     else:
         box = None
         orthogonal = False
@@ -59,6 +59,8 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         next_frame = current_frame+frames
         if box is not None:
             current_box = box[current_frame:next_frame]
+            orthogonal = np.allclose(
+                traj.unitcell_angles[current_frame:next_frame], 90)
         else:
             current_box = None
         lazy_results.append(wrap_da(_compute_distances_chunk, chunk_size,
