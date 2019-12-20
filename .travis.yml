@@ -9,7 +9,7 @@ branches:
 
 env:
   global:
-    - CANONICAL_PYTHON="3.6"
+    - CANONICAL_PYTHON="3.7"
     - CANONICAL_MDTRAJ="release"
   matrix:
     - MDTRAJ="release"
