@@ -10,7 +10,7 @@ sphinx:
   configuration: docs/conf.py
 
 conda:
-    environment: docs/environment.yml
+  environment: docs/environment.yml
 
 # Build documentation with MkDocs
 #mkdocs:
@@ -22,5 +22,7 @@ conda:
 python:
   version: 3.7
   install:
-    - method: setuptools
+    - requirements: docs/requirements.txt
+    - requirements: requirements.txt
+    - method: pip
       path: .
