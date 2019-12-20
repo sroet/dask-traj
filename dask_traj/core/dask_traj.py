@@ -58,7 +58,7 @@ file_returns = {'.arc': ['xyz', 'unitcell_lengths', 'unitcell_angles'],
 
 def load(filename, chunks=10, **kwargs):
     """
-    A loader that will mimic :py:method:`mdtraj.Trajectory.load()`, but
+    A loader that will mimic :py:func:`mdtraj.Trajectory.load()`, but
     construct a :py:class:`dasktraj.Trajectory` with a :py:class:`dask.array`
     as xyz, time, and unitcell properties.
 
@@ -101,7 +101,7 @@ def load(filename, chunks=10, **kwargs):
 
 def load_chunks(filename, extension, chunk_size, chunks, **kwargs):
     """
-    Uses :py:method:`dask.delayed()` to lazy load the chunks of a trajectory
+    Uses :py:func:`dask.delayed()` to lazy load the chunks of a trajectory
     and builds a result dict.
 
     Parameters
@@ -400,6 +400,7 @@ class Trajectory(mdtraj.Trajectory):
     @property
     def xyz(self):
         """Cartesian coordinates of each atom in each simulation frame
+
         Returns
         -------
         xyz : ndarray, shape=(n_frames, n_atoms, 3)
@@ -432,6 +433,7 @@ class Trajectory(mdtraj.Trajectory):
     @property
     def unitcell_angles(self):
         """Angles that define the shape of the unit cell in each frame.
+
         Returns
         -------
         lengths : nd.array, shape=(n_frames, 3)
@@ -448,6 +450,7 @@ class Trajectory(mdtraj.Trajectory):
     @unitcell_angles.setter
     def unitcell_angles(self, value):
         """Set the lengths that define the shape of the unit cell in each frame
+
         Parameters
         ----------
         value : ndarray, shape=(n_frames, 3)
@@ -465,6 +468,7 @@ class Trajectory(mdtraj.Trajectory):
     @property
     def unitcell_lengths(self):
         """Lengths that define the shape of the unit cell in each frame.
+
         Returns
         -------
         lengths : {ndarray, shape=(n_frames, 3), None}
@@ -478,6 +482,7 @@ class Trajectory(mdtraj.Trajectory):
     @unitcell_lengths.setter
     def unitcell_lengths(self, value):
         """Set the lengths that define the shape of the unit cell in each frame
+
         Parameters
         ----------
         value : ndarray, shape=(n_frames, 3)
@@ -495,6 +500,7 @@ class Trajectory(mdtraj.Trajectory):
     @property
     def unitcell_vectors(self):
         """vectors that define the shape of the unit cell in each frame.
+
         Returns
         -------
         vectors : {ndarray, shape=(n_frames, 3), None}
@@ -508,6 +514,7 @@ class Trajectory(mdtraj.Trajectory):
 
     def _calc_unitcell_vectors(self):
         """The vectors that define the shape of the unit cell in each frame
+
         Returns
         -------
         vectors : da.ndarray, shape(n_frames, 3, 3)
@@ -535,6 +542,7 @@ class Trajectory(mdtraj.Trajectory):
 
     def _calc_length_and_angles(self, vectors):
         """Set the three vectors that define the shape of the unit cell
+
         Parameters
         ----------
         vectors : tuple of three arrays, each of shape=(n_frames, 3)
