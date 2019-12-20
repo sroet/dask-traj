@@ -1,0 +1,3 @@
+[report]
+omit = 
+    */dask_traj/version.py

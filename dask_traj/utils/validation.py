@@ -159,8 +159,24 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length, alpha, beta,
     This code is adapted from gyroid, which is licensed under the BSD
     http://pythonhosted.org/gyroid/_modules/gyroid/unitcell.html
     """
-    if da.all(alpha < 2*np.pi) and da.all(beta < 2*np.pi) and da.all(gamma < 2*np.pi):
-        warnings.warn('All your angles were less than 2*pi. Did you accidentally give me radians?')
+    # Fix for da that requires angles and lengths to be arrays
+    lengths = [a_length, b_length, c_length]
+    for i, e in enumerate(lengths):
+        # Use python logic shortcutting to not compute dask Arrays
+        if not isinstance(e, da.Array) and np.isscalar(e):
+            lengths[i] = np.array([i])
+    a_length, b_length, c_length = tuple(lengths)
+
+    angles = [alpha, beta, gamma]
+    for i, e in enumerate(angles):
+        if not isinstance(e, da.Array) and np.isscalar(e):
+            angles[i] = np.array([i])
+    alpha, beta, gamma = tuple(angles)
+
+    if da.all(alpha < 2*np.pi) and (da.all(beta < 2*np.pi)
+                                    and da.all(gamma < 2*np.pi)):
+        warnings.warn('All your angles were less than 2*pi.'
+                      ' Did you accidentally give me radians?')
 
     alpha = alpha * np.pi / 180
     beta = beta * np.pi / 180

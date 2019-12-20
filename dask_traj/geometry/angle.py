@@ -10,6 +10,7 @@ import numpy as np
 def _compute_angles_chunk(xyz, triplets, box=None, periodic=True,
                           opt=True, orthogonal=False):
     """compute the angles for a single chunk"""
+    orthogonal = bool(orthogonal)
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np=True)
@@ -59,13 +60,12 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
                          traj.n_atoms)
 
     if len(triplets) == 0:
-        return np.zeros((len(xyz), 0), dtype=np.float32)
+        return da.zeros((len(xyz), 0), dtype=np.float32)
 
     if periodic and traj._have_unitcell:
         box = ensure_type(traj.unitcell_vectors, dtype=np.float32, ndim=3,
                           name='unitcell_vectors', shape=(len(xyz), 3, 3),
                           warn_on_cast=False)
-        orthogonal = np.allclose(traj.unitcell_angles, 90)
     else:
         box = None
         orthogonal = False
@@ -76,6 +76,8 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
         next_frame = current_frame+frames
         if box is not None:
             current_box = box[current_frame:next_frame]
+            orthogonal = da.allclose(
+                traj.unitcell_angles[current_frame:next_frame], 90)
         else:
             current_box = None
         chunk_size = (frames, atoms)

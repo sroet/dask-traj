@@ -43,8 +43,8 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
                         shape=(None, 2), warn_on_cast=False)
     if not np.all(np.logical_and(pairs < traj.n_atoms, pairs >= 0)):
         raise ValueError('atom_pairs must be between 0 and %d' % traj.n_atoms)
-    if len(pairs) == 0:
-        return np.zeros((length, 0), dtype=np.float32)
+    if len(pairs) == 0:  # If pairs is an empty slice of an array
+        return da.zeros((length, 0), dtype=np.float32)
     if periodic and traj._have_unitcell:
         box = ensure_type(traj.unitcell_vectors, dtype=np.float32, ndim=3,
                           name='unitcell_vectors', shape=(len(xyz), 3, 3),
@@ -59,7 +59,7 @@ def compute_distances(traj, atom_pairs, periodic=True, **kwargs):
         next_frame = current_frame+frames
         if box is not None:
             current_box = box[current_frame:next_frame]
-            orthogonal = np.allclose(
+            orthogonal = da.allclose(
                 traj.unitcell_angles[current_frame:next_frame], 90)
         else:
             current_box = None
@@ -81,7 +81,7 @@ def _compute_displacements_chunk(xyz, pairs, box=None, periodic=True, opt=True,
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
                       cast_da_to_np=True)
-
+    orthogonal = bool(orthogonal)
     if periodic and box is not None:
         if opt:
             out = np.empty((xyz.shape[0], pairs.shape[0], 3), dtype=np.float32)
@@ -112,13 +112,12 @@ def compute_displacements(traj, atom_pairs, periodic=True, **kwargs):
                         shape=(None, 2), warn_on_cast=False)
     if not np.all(np.logical_and(pairs < traj.n_atoms, pairs >= 0)):
         raise ValueError('atom_pairs must be between 0 and %d' % traj.n_atoms)
-    if len(pairs) == 0:
-        return np.zeros((length, 0), dtype=np.float32)
+    if len(pairs) == 0:  # If pairs is an empty slice of an array
+        return da.zeros((length, 0, 3), dtype=np.float32)
     if periodic and traj._have_unitcell:
         box = ensure_type(traj.unitcell_vectors, dtype=np.float32, ndim=3,
                           name='unitcell_vectors', shape=(len(xyz), 3, 3),
                           warn_on_cast=False)
-        orthogonal = np.allclose(traj.unitcell_angles, 90)
     else:
         box = None
         orthogonal = False
@@ -129,6 +128,8 @@ def compute_displacements(traj, atom_pairs, periodic=True, **kwargs):
         next_frame = current_frame+frames
         if box is not None:
             current_box = box[current_frame:next_frame]
+            orthogonal = da.allclose(
+                traj.unitcell_angles[current_frame:next_frame], 90)
         else:
             current_box = None
         lazy_results.append(wrap_da(_compute_displacements_chunk, chunk_size,

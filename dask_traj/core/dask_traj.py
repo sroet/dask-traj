@@ -310,7 +310,7 @@ def get_unitcell(result_dict, length):
         uv = None
 
     if unitcell_lengths is not None and unitcell_angles is None:
-        ul = make_da(unitcell_vectors, length)
+        ul = make_da(unitcell_lengths, length)
         ua = da.ones_like(ul)
     elif unitcell_angles is not None:
         ul = make_da(unitcell_vectors, length)
@@ -369,19 +369,24 @@ class Trajectory(mdtraj.Trajectory):
                  **kwargs):
         dask.persist(**kwargs)
         self._unitcell_vectors = None
-        super(Trajectory, self).__init__(xyz=xyz, topology=topology, **kwargs)
+        super(Trajectory, self).__init__(xyz=xyz, topology=topology, time=time,
+                                         **kwargs)
 
     def to_mdtraj(self):
         """Converts self to an mdtraj.Trajectory"""
-        self.__class__ = mdtraj.Trajectory
 
         self.xyz = np.asarray(self.xyz)
-
-        if self._have_unitcell:
+        self.time = np.asarray(self.time)
+        if self._have_unitcell and self._unitcell_lengths is None:
+            self._calc_length_and_angles(self.unitcell_vectors)
             self.unitcell_lengths = np.asarray(self.unitcell_lengths)
             self.unitcell_angles = np.asarray(self.unitcell_angles)
             # We don't set the vectors here as they are calculated in
             # mdtraj.Trajectory anyway
+        elif self._have_unitcell:
+            self.unitcell_lengths = np.asarray(self.unitcell_lengths)
+            self.unitcell_angles = np.asarray(self.unitcell_angles)
+        self.__class__ = mdtraj.Trajectory
 
     @property
     def xyz(self):
@@ -569,7 +574,7 @@ class Trajectory(mdtraj.Trajectory):
                                  'unitcell')
         else:
             raise TypeError(
-                '`other` must be a list of Trajectory. You supplied %d' %
+                '`other` must be a list of Trajectory. You supplied %s' %
                 type(other))
 
         trajectories = [self] + other
@@ -605,8 +610,8 @@ class Trajectory(mdtraj.Trajectory):
         '''Updated hash function to use the name of the dask array'''
         hash_value = hash(self.top)
         # combine with hashes of arrays
-        hash_value ^= self._xyz.name
-        hash_value ^= _hash_numpy_array(self.time)
-        hash_value ^= _hash_numpy_array(self._unitcell_lengths)
-        hash_value ^= _hash_numpy_array(self._unitcell_angles)
+        hash_value ^= hash(self._xyz.name)
+        hash_value ^= hash(self.time.name)
+        hash_value ^= _hash_numpy_array(self.unitcell_lengths.compute())
+        hash_value ^= _hash_numpy_array(self.unitcell_angles.compute())
         return hash_value
