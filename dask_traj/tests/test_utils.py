@@ -4,6 +4,7 @@ from dask_traj.utils import (ensure_type,
                              box_vectors_to_lengths_and_angles)
 import numpy as np
 import itertools as itt
+import mdtraj
 
 
 class TestEnsureType(object):
@@ -22,7 +23,8 @@ class TestEnsureType(object):
         assert all(b == np.array([1, 1, 1], dtype=np.int32))
 
     def test_scalar_conversion(self):
-        test = 1.0
+        test = 1
+        self.kwargs['warn_on_cast'] = False
         b = ensure_type(test, **self.kwargs)
         assert all(b == np.array([1], dtype=np.int32))
 
@@ -92,6 +94,13 @@ class TestLengthAndAnglesToBoxVectors(object):
         with pytest.raises(TypeError) as err:
             _ = lengths_and_angles_to_box_vectors(**self.kwargs)
         assert 'Shape is messed up' in str(err)
+
+    def test_same_as_mdtraj(self):
+        a = mdtraj.utils.lengths_and_angles_to_box_vectors(**self.kwargs)
+        b = lengths_and_angles_to_box_vectors(**self.kwargs)
+        assert (a[0] == b[0].compute()).all()
+        assert (a[1] == b[1].compute()).all()
+        assert (a[2] == b[2].compute()).all()
 
 
 class TestBoxVectorsToLengthAndAngles(object):

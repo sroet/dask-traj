@@ -171,13 +171,13 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length,
     for i, e in enumerate(lengths):
         # Use python logic shortcutting to not compute dask Arrays
         if not isinstance(e, da.core.Array) and np.isscalar(e):
-            lengths[i] = np.array([i])
+            lengths[i] = np.array([e])
     a_length, b_length, c_length = tuple(lengths)
 
     angles = [alpha, beta, gamma]
     for i, e in enumerate(angles):
         if not isinstance(e, da.core.Array) and np.isscalar(e):
-            angles[i] = np.array([i])
+            angles[i] = np.array([e])
     alpha, beta, gamma = tuple(angles)
 
     if da.all(alpha < 2*np.pi) and (da.all(beta < 2*np.pi)
@@ -195,7 +195,7 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length,
                   da.zeros_like(b_length)])
     cx = c_length*da.cos(beta)
     cy = c_length*(da.cos(alpha) - da.cos(beta)*da.cos(gamma)) / da.sin(gamma)
-    cz = (c_length*c_length - cx*cx - cy*cy)**(1/2)
+    cz = da.sqrt(c_length*c_length - cx*cx - cy*cy)
     c = da.stack([cx, cy, cz])
     if not a.shape == b.shape == c.shape:
         raise TypeError('Shape is messed up.')
