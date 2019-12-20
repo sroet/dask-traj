@@ -217,8 +217,7 @@ def get_xyz(result_dict, length, distance_unit):
     Parameters
     ----------
     result_dict: dict of :py:class:`dask.delayed` objects
-        dict of delayed objects where we make the xyz from  grab  into an dask
-        array.
+        dict of delayed objects where we make the xyz from into a dask   array.
     lenght : int
         total length of the final dask array.
     distance_unit: string
@@ -250,8 +249,7 @@ def get_time(result_dict, length, chunk_size):
     Parameters
     ----------
     result_dict: dict of :py:class:`dask.delayed` objects
-        dict of delayed objects where we make the time from  grab  into an dask
-        array.
+        dict of delayed objects where we make the time from into an dask array.
     lenght : int
         total length of the final dask array.
     chunk_size: int
@@ -360,10 +358,21 @@ def read_chunk(filename, chunk_size, start):
 class Trajectory(mdtraj.Trajectory):
     """mdtraj.Trajectory with dask.array properties
 
-    Properties
+    Attributes
     ----------
-
+    n_frames : int
+    n_atoms : int
+    n_residues : int
+    time : np.ndarray, shape=(n_frames,)
+    timestep : float
+    topology : md.Topology
+    top : md.Topology
+    xyz : ndarray, shape=(n_frames, n_atoms, 3)
+    unitcell_vectors : {ndarray, shape=(n_frames, 3, 3), None}
+    unitcell_lengths : {ndarray, shape=(n_frames, 3), None}
+    unitcell_angles : {ndarray, shape=(n_frames, 3), None}
     """
+
     # TODO add other kwargs from MDtraj.trajectory
     def __init__(self, xyz,  topology, time=None, delayed_objects=None,
                  **kwargs):
@@ -373,7 +382,7 @@ class Trajectory(mdtraj.Trajectory):
                                          **kwargs)
 
     def to_mdtraj(self):
-        """Converts self to an mdtraj.Trajectory"""
+        """Converts self to a mdtraj.Trajectory"""
 
         self.xyz = np.asarray(self.xyz)
         self.time = np.asarray(self.time)
@@ -393,7 +402,7 @@ class Trajectory(mdtraj.Trajectory):
         """Cartesian coordinates of each atom in each simulation frame
         Returns
         -------
-        xyz : dask.array, shape=(n_frames, n_atoms, 3)
+        xyz : ndarray, shape=(n_frames, n_atoms, 3)
             A three dimensional dask array, with the cartesian coordinates
             of each atoms in each frame.
         """
@@ -425,7 +434,7 @@ class Trajectory(mdtraj.Trajectory):
         """Angles that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : dask.array, shape=(n_frames, 3)
+        lengths : nd.array, shape=(n_frames, 3)
             The angles between the three unitcell vectors in each frame,
             ``alpha``, ``beta``, and ``gamma``. ``alpha' gives the angle
             between vectors ``b`` and ``c``, ``beta`` gives the angle between
@@ -441,7 +450,7 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : dask.ndarray, shape=(n_frames, 3)
+        value : ndarray, shape=(n_frames, 3)
             The angles ``alpha``, ``beta`` and ``gamma`` that define the
             shape of the unit cell in each frame. The angles should be in
             degrees.
@@ -458,7 +467,7 @@ class Trajectory(mdtraj.Trajectory):
         """Lengths that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : {dask.array, shape=(n_frames, 3), None}
+        lengths : {ndarray, shape=(n_frames, 3), None}
             Lengths of the unit cell in each frame, in nanometers, or None
             if the Trajectory contains no unitcell information.
         """
@@ -471,7 +480,7 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : dask.array, shape=(n_frames, 3)
+        value : ndarray, shape=(n_frames, 3)
             The distances ``a``, ``b``, and ``c`` that define the shape of the
             unit cell in each frame, or None
         """
@@ -488,7 +497,7 @@ class Trajectory(mdtraj.Trajectory):
         """vectors that define the shape of the unit cell in each frame.
         Returns
         -------
-        vectors : {dask.array, shape=(n_frames, 3), None}
+        vectors : {ndarray, shape=(n_frames, 3), None}
             Vecotors of the unit cell in each frame, in nanometers, or None
             if the Trajectory contains no unitcell information.
         """
@@ -501,7 +510,7 @@ class Trajectory(mdtraj.Trajectory):
         """The vectors that define the shape of the unit cell in each frame
         Returns
         -------
-        vectors : np.ndarray, shape(n_frames, 3, 3)
+        vectors : da.ndarray, shape(n_frames, 3, 3)
             Vectors defining the shape of the unit cell in each frame.
             The semantics of this array are that the shape of the unit cell
             in frame ``i`` are given by the three vectors, ``value[i, 0, :]``,
@@ -554,7 +563,21 @@ class Trajectory(mdtraj.Trajectory):
 
     def join(self, other, check_topology=True,
              discard_overlapping_frames=False):
-        """This is a daskified version of md.Trajectory.join()"""
+        """This is a daskified version of md.Trajectory.join()
+
+        Parameters
+        ----------
+        other : Trajectory or list of Trajectory
+            One or more trajectories to join with this one. These trajectories
+            are *appended* to the end of this trajectory.
+        check_topology : bool
+            Ensure that the topology of `self` and `other` are identical before
+            joining them. If false, the resulting trajectory will have the
+            topology of `self`.
+        discard_overlapping_frames : bool, optional
+            If True, compare coordinates at trajectory edges to discard
+            overlapping frames.  Default: False.
+        """
 
         if isinstance(other, Trajectory):
             other = [other]
@@ -607,7 +630,7 @@ class Trajectory(mdtraj.Trajectory):
                               unitcell_angles=angles)
 
     def __hash__(self):
-        '''Updated hash function to use the name of the dask array'''
+        '''Updated hash function to use the name of the dask arrays'''
         hash_value = hash(self.top)
         # combine with hashes of arrays
         hash_value ^= hash(self._xyz.name)

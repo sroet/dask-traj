@@ -1,11 +1,11 @@
-#copy of varius mdtraj utils that need to loosen, to work
+# Copy of various mdtraj utils that need to loosen, to work with dask
 from __future__ import print_function, division
 import warnings
-import numbers
 import numpy as np
 import collections
 from mdtraj.utils.six.moves import zip_longest
 import dask.array as da
+
 
 class TypeCastPerformanceWarning(RuntimeWarning):
     pass
@@ -40,23 +40,29 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
         length three without constraining the first two dimensions
     warn_on_cast : bool, default=True
         Raise a warning when the dtypes don't match and a cast is done.
-    add_newaxis_on_deficient_ndim : bool, default=True
+    add_newaxis_on_deficient_ndim : bool, default=False
         Add a new axis to the beginining of the array if the number of
         dimensions is deficient by one compared to your specification. For
         instance, if you're trying to get out an array of ``ndim == 3``,
-        but the user provides an array of ``shape == (10, 10)``, a new axis will
-        be created with length 1 in front, so that the return value is of
+        but the user provides an array of ``shape == (10, 10)``, a new axis
+        will be created with length 1 in front, so that the return value is of
         shape ``(1, 10, 10)``.
+    cast_da_to_np : bool, default=False
+        Cast dask.arrays to np.arrays, this will trigger a computation on the
+        dask array, which is needed to make them C-contigious in memory for
+        several low-level mdtraj computations
     Notes
     -----
-    The returned value will always be C-contiguous.
+    The returned value will always be C-contiguous if it is an np.array or if
+    cast_da_to_np is True.
+
     Returns
     -------
-    typechecked_val : np.ndarray, None
+    typechecked_val : ndarray, None
         If `val=None` and `can_be_none=True`, then this will return None.
-        Otherwise, it will return val (or a copy of val). If the dtype wasn't right,
-        it'll be casted to the right shape. If the array was not C-contiguous, it'll
-        be copied as well.
+        Otherwise, it will return val (or a copy of val). If the dtype wasn't
+        right, it'll be casted to the right shape. If the array was not
+        C-contiguous, it'll be copied as well.
     """
     if can_be_none and val is None:
         return None
@@ -77,26 +83,26 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
             val = np.array([val])
         else:
             raise TypeError(("%s must be numpy array. "
-                " You supplied type %s" % (name, type(val))))
+                             " You supplied type %s" % (name, type(val))))
 
     if warn_on_cast and val.dtype != dtype:
         warnings.warn("Casting %s dtype=%s to %s " % (name, val.dtype, dtype),
-            TypeCastPerformanceWarning)
+                      TypeCastPerformanceWarning)
 
     if not val.ndim == ndim:
         if add_newaxis_on_deficient_ndim and val.ndim + 1 == ndim:
             val = val[np.newaxis, ...]
         else:
             raise ValueError(("%s must be ndim %s. "
-                "You supplied %s" % (name, ndim, val.ndim)))
+                              "You supplied %s" % (name, ndim, val.ndim)))
 
-    if (isinstance(val, np.ndarray)
-	    or (cast_da_to_np and isinstance(val, da.core.Array))):
+    if (isinstance(val, np.ndarray) or (
+            cast_da_to_np and isinstance(val, da.core.Array))):
         val = np.ascontiguousarray(val, dtype=dtype)
 
     if length is not None and len(val) != length:
         raise ValueError(("%s must be length %s. "
-            "You supplied %s" % (name, length, len(val))))
+                          "You supplied %s" % (name, length, len(val))))
 
     if shape is not None:
         # the shape specified given by the user can look like (None, None 3)
@@ -104,14 +110,15 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
         # dimension 1
         sentenel = object()
         error = ValueError(("%s must be shape %s. You supplied  "
-                "%s" % (name, str(shape).replace('None', 'Any'), val.shape)))
+                            "%s" % (name, str(shape).replace('None', 'Any'),
+                                    val.shape)))
         for a, b in zip_longest(val.shape, shape, fillvalue=sentenel):
             if a is sentenel or b is sentenel:
                 # if the sentenel was reached, it means that the ndim didn't
                 # match or something. this really shouldn't happen
                 raise error
             if b is None:
-                # if the user's shape spec has a None in it, it matches anything
+                # the user's shape spec has a None in it, it matches anything
                 continue
             if a != b:
                 # check for equality
@@ -119,43 +126,43 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
     return val
 
 
-def lengths_and_angles_to_box_vectors(a_length, b_length, c_length, alpha, beta, gamma):
+def lengths_and_angles_to_box_vectors(a_length, b_length, c_length,
+                                      alpha, beta, gamma):
     """Convert from the lengths/angles of the unit cell to the box
     vectors (Bravais vectors). The angles should be in degrees.
+
+    Mimics mdtraj.core.unitcell.lengths_and_angles_to_box_vectors()
+
     Parameters
     ----------
-    a_length : scalar or np.ndarray
+    a_length : scalar or ndarray
         length of Bravais unit vector **a**
-    b_length : scalar or np.ndarray
+    b_length : scalar or ndarray
         length of Bravais unit vector **b**
-    c_length : scalar or np.ndarray
+    c_length : scalar or ndarray
         length of Bravais unit vector **c**
-    alpha : scalar or np.ndarray
+    alpha : scalar or ndarray
         angle between vectors **b** and **c**, in degrees.
-    beta : scalar or np.ndarray
+    beta : scalar or ndarray
         angle between vectors **c** and **a**, in degrees.
-    gamma : scalar or np.ndarray
+    gamma : scalar or ndarray
         angle between vectors **a** and **b**, in degrees.
+
     Returns
     -------
-    a : np.ndarray
-        If the inputs are scalar, the vectors will one dimesninoal (length 3).
+    a : dask.array
+        If the inputs are scalar, the vectors will one dimensional (length 3).
         If the inputs are one dimension, shape=(n_frames, ), then the output
         will be (n_frames, 3)
-    b : np.ndarray
-        If the inputs are scalar, the vectors will one dimesninoal (length 3).
+    b : dask.array
+        If the inputs are scalar, the vectors will one dimensional (length 3).
         If the inputs are one dimension, shape=(n_frames, ), then the output
         will be (n_frames, 3)
-    c : np.ndarray
-        If the inputs are scalar, the vectors will one dimesninoal (length 3).
+    c : dask.array
+        If the inputs are scalar, the vectors will one dimensional (length 3).
         If the inputs are one dimension, shape=(n_frames, ), then the output
         will be (n_frames, 3)
-    Examples
-    --------
-    >>> import numpy as np
-    >>> result = lengths_and_angles_to_box_vectors(1, 1, 1, 90.0, 90.0, 90.0)
-    Notes
-    -----
+
     This code is adapted from gyroid, which is licensed under the BSD
     http://pythonhosted.org/gyroid/_modules/gyroid/unitcell.html
     """
@@ -163,13 +170,13 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length, alpha, beta,
     lengths = [a_length, b_length, c_length]
     for i, e in enumerate(lengths):
         # Use python logic shortcutting to not compute dask Arrays
-        if not isinstance(e, da.Array) and np.isscalar(e):
+        if not isinstance(e, da.core.Array) and np.isscalar(e):
             lengths[i] = np.array([i])
     a_length, b_length, c_length = tuple(lengths)
 
     angles = [alpha, beta, gamma]
     for i, e in enumerate(angles):
-        if not isinstance(e, da.Array) and np.isscalar(e):
+        if not isinstance(e, da.core.Array) and np.isscalar(e):
             angles[i] = np.array([i])
     alpha, beta, gamma = tuple(angles)
 
@@ -183,25 +190,30 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length, alpha, beta,
     gamma = gamma * np.pi / 180
 
     a = da.stack([a_length, da.zeros_like(a_length), da.zeros_like(a_length)])
-    b = da.stack([b_length*da.cos(gamma), b_length*da.sin(gamma), da.zeros_like(b_length)])
+    b = da.stack([b_length*da.cos(gamma),
+                  b_length*da.sin(gamma),
+                  da.zeros_like(b_length)])
     cx = c_length*da.cos(beta)
     cy = c_length*(da.cos(alpha) - da.cos(beta)*da.cos(gamma)) / da.sin(gamma)
     cz = (c_length*c_length - cx*cx - cy*cy)**(1/2)
-    c = da.stack([cx,cy,cz])
+    c = da.stack([cx, cy, cz])
     if not a.shape == b.shape == c.shape:
         raise TypeError('Shape is messed up.')
 
     # Make sure that all vector components that are _almost_ 0 are set exactly
     # to 0
     tol = 1e-6
-    a[da.logical_and(a>-tol, a<tol)] = 0.0
-    b[da.logical_and(b>-tol, b<tol)] = 0.0
-    c[da.logical_and(c>-tol, c<tol)] = 0.0
+    a[da.logical_and(a > -tol, a < tol)] = 0.0
+    b[da.logical_and(b > -tol, b < tol)] = 0.0
+    c[da.logical_and(c > -tol, c < tol)] = 0.0
 
     return a.T, b.T, c.T
 
+
 def box_vectors_to_lengths_and_angles(a, b, c):
     """Convert box vectors into the lengths and angles defining the box.
+
+    Addapted from mdtraj.utils.unitcell.box_vectors_to_lengths_and_angles()
     Parameters
     ----------
     a : np.ndarray
@@ -216,40 +228,27 @@ def box_vectors_to_lengths_and_angles(a, b, c):
         the vector defining the third edge of the periodic box (length 3), or
         an array of this vector in multiple frames, where c[i,:] gives the
         length 3 array of vector a in each frame of a simulation
-    Examples
-    --------
-    >>> a = np.array([2,0,0], dtype=float)
-    >>> b = np.array([0,1,0], dtype=float)
-    >>> c = np.array([0,1,1], dtype=float)
-    >>> l1, l2, l3, alpha, beta, gamma = box_vectors_to_lengths_and_angles(a, b, c)
-    >>> (l1 == 2.0) and (l2 == 1.0) and (l3 == np.sqrt(2))
-    True
-    >>> np.abs(alpha - 45) < 1e-6
-    True
-    >>> np.abs(beta - 90.0) < 1e-6
-    True
-    >>> np.abs(gamma - 90.0) < 1e-6
-    True
+
     Returns
     -------
-    a_length : scalar or np.ndarray
+    a_length : dask.array
         length of Bravais unit vector **a**
-    b_length : scalar or np.ndarray
+    b_length : dask.array
         length of Bravais unit vector **b**
-    c_length : scalar or np.ndarray
+    c_length : dask.array
         length of Bravais unit vector **c**
-    alpha : scalar or np.ndarray
+    alpha : dask.array
         angle between vectors **b** and **c**, in degrees.
-    beta : scalar or np.ndarray
+    beta : dask.array
         angle between vectors **c** and **a**, in degrees.
-    gamma : scalar or np.ndarray
+    gamma : dask.array
         angle between vectors **a** and **b**, in degrees.
     """
     if not a.shape == b.shape == c.shape:
         raise TypeError('Shape is messed up.')
     if not a.shape[-1] == 3:
         raise TypeError('The last dimension must be length 3')
-    if not (a.ndim in [1,2]):
+    if not (a.ndim in [1, 2]):
         raise ValueError('vectors must be 1d or 2d (for a vectorized '
                          'operation on multiple frames)')
     last_dim = a.ndim-1
@@ -271,5 +270,7 @@ def box_vectors_to_lengths_and_angles(a, b, c):
 
     return a_length, b_length, c_length, alpha, beta, gamma
 
+
 def wrap_da(f, chunk_size, **kwargs):
+    """Convenience function to wrap dask.array.from_delayed()"""
     return da.from_delayed(f(**kwargs), dtype=np.float32, shape=chunk_size)

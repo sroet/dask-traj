@@ -9,7 +9,26 @@ import numpy as np
 @dask.delayed
 def _compute_angles_chunk(xyz, triplets, box=None, periodic=True,
                           opt=True, orthogonal=False):
-    """compute the angles for a single chunk"""
+    """Compute the angles for a single chunk
+
+    Parameters
+    ----------
+    xyz : ndarray of shape (any, any, 3)
+        The xyz coordinates of the chunk
+    triplets : array of shape (any, 3)
+        The indices for which to compute an angle
+    box : ndarray of shape (any, 3, 3)
+        The box vectors of the chunk
+    periodic : bool
+        Wether to use the periodc boundary during the calculation.
+    opt : bool, default=True
+        Use an optimized native library to calculate distances. MDTraj's
+        optimized SSE angle calculation implementation is 10-20x faster than
+        the (itself optimized) numpy implementation.
+    orthogonal : bool or da.bool
+        Wether all angles are close to 90 degrees
+    """
+    # Cast dask.bool to a true bool
     orthogonal = bool(orthogonal)
     xyz = ensure_type(xyz, dtype=np.float32, ndim=3, name='xyz',
                       shape=(None, None, 3), warn_on_cast=False,
@@ -27,7 +46,7 @@ def _compute_angles_chunk(xyz, triplets, box=None, periodic=True,
     return out
 
 
-def compute_angles(traj, angle_indices, periodic=True, **kwargs):
+def compute_angles(traj, angle_indices, periodic=True, opt=True, **kwargs):
     """ Daskified version of mdtraj.compute_angles().
 
     This mimics py:method:`mdtraj.compute_angles()` but returns the answer
@@ -41,6 +60,10 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
         The indices for which to compute an angle.
     periodic : bool
         Wether to use the periodc boundary during the calculation.
+    opt : bool, default=True
+        Use an optimized native library to calculate distances. MDTraj's
+        optimized SSE angle calculation implementation is 10-20x faster than
+        the (itself optimized) numpy implementation.
 
     Returns
     -------
@@ -86,6 +109,7 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
                                     triplets=triplets,
                                     box=current_box,
                                     orthogonal=orthogonal,
+                                    opt=opt,
                                     **kwargs))
         current_frame = next_frame
     max_result = da.concatenate(lazy_results)
@@ -94,7 +118,22 @@ def compute_angles(traj, angle_indices, periodic=True, **kwargs):
 
 
 def _angle(xyz, triplets, periodic, out):
-    """Delayed version of the _angle function of mdtraj"""
+    """Delayed version of the _angle function of mdtraj
+
+    Parameters
+    ----------
+    xyz : ndarray of shape (any, any, 3)
+        The xyz coordinates of the chunk
+    triplets : array of shape (any, 3)
+        The indices for which to compute an angle
+    box : ndarray of shape (any, 3, 3)
+        The box vectors of the chunk
+    periodic : bool
+        Wether to use the periodc boundary during the calculation.
+    out : ndarray of zeros of shape (len(xyz), len(triplets))
+        The output array
+    """
+
     ix01 = triplets[:, [1, 0]]
     ix21 = triplets[:, [1, 2]]
 
