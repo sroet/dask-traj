@@ -6,8 +6,8 @@ import os
 from mdtraj.utils import in_units_of
 from mdtraj.core.trajectory import (open, _get_extension, _parse_topology,
                                     _TOPOLOGY_EXTS, _hash_numpy_array)
-from .utils import (ensure_type, box_vectors_to_lengths_and_angles,
-                    lengths_and_angles_to_box_vectors)
+from dask_traj.utils import (ensure_type, box_vectors_to_lengths_and_angles,
+                             lengths_and_angles_to_box_vectors)
 
 from copy import deepcopy
 # dictionary to tell what is actually returned by read per extension type
@@ -18,19 +18,19 @@ file_returns = {'.arc': ['xyz', 'unitcell_lengths', 'unitcell_angles'],
                 '.binpos': ['xyz'],
                 '.xtc': ['xyz', 'time', 'step', 'unitcell_vectors'],
                 '.trr': ['xyz', 'time', 'step', 'unitcell_vectors', '_'],
-                '.hdf5': ['data'], #Need special case
-                '.h5': ['data'], # Same as hdf5
+                '.hdf5': ['data'],  # Need special case
+                '.h5': ['data'],  # Same as hdf5
                 '.ncdf': ['xyz', 'time', 'unitcell_lengths',
                           'unitcell_angles'],
                 '.netcdf': ['xyz', 'time', 'unitcell_lengths',
-                          'unitcell_angles'],
+                            'unitcell_angles'],
                 '.nc': ['xyz', 'time', 'unitcell_lengths',
-                          'unitcell_angles'],
-                '.pdb.gz': [], # Not implemented for now
-                '.pdb': [], # Not implemented for now
+                        'unitcell_angles'],
+                '.pdb.gz': [],  # Not implemented for now
+                '.pdb': [],  # Not implemented for now
                 '.lh5': ['xyz'],
                 '.crd': ['xyz', 'unitcell_lengths'
-                         ], # Needs to assume angles to be 90
+                         ],  # Needs to assume angles to be 90
                 '.mdcrd': ['xyz', 'unitcell_lengths'
                            ],  # Needs to assume angles to be 90
                 '.inpcrd': ['xyz', 'time', 'unitcell_lengths',
@@ -40,24 +40,39 @@ file_returns = {'.arc': ['xyz', 'unitcell_lengths', 'unitcell_angles'],
                 '.rst7': ['xyz', 'time', 'unitcell_lengths',
                           'unitcell_angles'],
                 '.ncrst': ['xyz', 'time', 'unitcell_lengths',
-                          'unitcell_angles'],
+                           'unitcell_angles'],
                 '.lammpstrj': ['xyz', 'unitcell_lengths', 'unitcell_angles'],
                 '.dtr': ['xyz', 'time', 'unitcell_lengths', 'unitcell_angles'],
                 '.stk': ['xyz', 'time', 'unitcell_lengths', 'unitcell_angles'],
                 '.gro': ['xyz', 'time', 'unitcell_vectors'],
                 '.xyz.gz': ['xyz'],
                 '.xyz': ['xyz'],
-                '.tng': ['xyz','time', 'unitcell_vectors'],
-                '.xml': [], #not implemented for now
-                '.mol2': [], #not implemented for now
-                '.hoomdxml': [] #not implemented for now
+                '.tng': ['xyz', 'time', 'unitcell_vectors'],
+                '.xml': [],  # not implemented for now
+                '.mol2': [],  # not implemented for now
+                '.hoomdxml': []  # not implemented for now
                 }
 
 # TODO make class of trajectory chunk
 
+
 def load(filename, chunks=10, **kwargs):
-    """ A loader that will mimic mdtraj.Trajectory.load, but construct a
-    dasktraj.Trajectory with a dask.array as xyz
+    """
+    A loader that will mimic :py:method:`mdtraj.Trajectory.load()`, but
+    construct a :py:class:`dasktraj.Trajectory` with a :py:class:`dask.array`
+    as xyz, time, and unitcell properties.
+
+    Parameters
+    ----------
+    filename : string
+        Filename of the file to load.
+    chunks : int
+        Number of frames per chunk.
+
+    Returns
+    -------
+    trajectory
+        A :py:class:`dasktraj.Trajectory`
     """
 
     top = kwargs.pop('top', None)
@@ -73,9 +88,9 @@ def load(filename, chunks=10, **kwargs):
         n_chunks += 1
     # TODO this needs to be closed at some point
     data = load_chunks(filename, extension, chunks, range(n_chunks),
-                           **kwargs)
+                       **kwargs)
 
-    #TODO: use this to construct unitcells
+    # TODO: use this to construct unitcells
     # Pop out irrelevant info
     uv = data.pop('unitcell_vectors')
     traj = Trajectory(topology=topology, delayed_objects=data, **data)
@@ -83,55 +98,138 @@ def load(filename, chunks=10, **kwargs):
         traj.unitcell_vectors = uv
     return traj
 
+
 def load_chunks(filename, extension, chunk_size, chunks, **kwargs):
-    read_returns = file_returns[extension]
+    """
+    Uses :py:method:`dask.delayed()` to lazy load the chunks of a trajectory
+    and builds a result dict.
+
+    Parameters
+    ----------
+    filename : string
+        Filename of the file to load.
+    extension: string
+        File extension of the file to load.
+    chunk_size: int
+        Number of frames per chunk.
+    chunks: list of int
+        Which chunks to load
+
+
+    Returns
+    -------
+    dict
+        A dictionary with the :py:class:`dask.array` trajectory properties
+    """
+
     # TODO: Add other kwargs like stride, atom_indices, time
-    xyzs = []
+
     with open(filename) as f:
         length = len(f)
         distance_unit = f.distance_unit
-    frames_left = length
     results = []
     for chunk in chunks:
-        frames = min(frames_left, chunk_size)
-        start = length-frames_left
+        start = chunk*chunk_size
+        frames = min(length-start, chunk_size)
         results.append(dask.delayed(read_chunk, pure=True)(filename,
-                                                           extension,
                                                            frames,
                                                            start))
-        frames_left -= frames
 
     result_dict = build_result_dict(results, extension, length, chunk_size,
                                     distance_unit)
     return result_dict
 
+
 def build_result_dict(results, extension, length, chunk_size, distance_unit):
+    """
+    Builds a result dict with py:class:`dask.array` for the properties of the
+    trajectory
+
+    Parameters
+    ----------
+    results : list of :py:class:`dask.Delayed` objects
+        delayed objects to extract the trajectory properties from.
+    extension: string
+        File extension of the file to load.
+    lenght: int
+        Number of frames of the trajectory.
+    chunk_size: int
+        Number of frames per chunk.
+    distance_unit: string
+        Indication of the distance unit of the file for the xyz.
+
+    Returns
+    -------
+    dict
+        A dictionary with the :py:class:`dask.array` trajectory properties
+    """
+
     read_returns = file_returns[extension]
+    if len(read_returns) == 0:
+        raise NotImplementedError(
+            "{} files are not yet supported".format(extension))
+
     # Persis the sample for quick building
-    sample = results[0].persist()
+    _ = results[0].persist()
     result_dict = {key: [result[i] for result in results]
-                   for i,key in enumerate(read_returns)}
-    xyz = get_xyz(result_dict, length, distance_unit )
+                   for i, key in enumerate(read_returns)}
+    xyz = get_xyz(result_dict, length, distance_unit)
     time = get_time(result_dict, length, chunk_size)
     unit_cell = get_unitcell(result_dict, length)
 
-    #Only keep xyz lazy
-    not_lazy_dict = {'time': time,
-                     'unitcell_lengths': unit_cell[0],
-                     'unitcell_angles': unit_cell[1],
-                     'unitcell_vectors': unit_cell[2]}
-    return_dict = not_lazy_dict # dask.compute(not_lazy_dict)[0]
+    not_xyz_dict = {'time': time,
+                    'unitcell_lengths': unit_cell[0],
+                    'unitcell_angles': unit_cell[1],
+                    'unitcell_vectors': unit_cell[2]}
+    return_dict = not_xyz_dict
     return_dict['xyz'] = xyz
     return return_dict
 
+
 def make_da(delayed_list, length):
+    """
+    Makes an  py:class:`dask.array` from a list of delayed objects.
+
+    Parameters
+    ----------
+    delayed_list: list of :py:class:`dask.delayed` objects
+        list of delayed objects to convert into an dask array
+    lenght : int
+        total length of the final dask array.
+
+    Returns
+    -------
+    :py:class:`dask.array`
+        dask array from the delayed objects.
+    """
     sample = delayed_list[0].compute()
     arrays = [da.from_delayed(item, dtype=sample.dtype, shape=sample.shape)
               for item in delayed_list]
     result = da.concatenate(arrays, axis=0)[:length]
     return result
 
+
 def get_xyz(result_dict, length, distance_unit):
+    """
+    Makes an  py:class:`dask.array` for xyz if it can be loaded from the
+    fileformat, otherwise returns None.
+
+    Parameters
+    ----------
+    result_dict: dict of :py:class:`dask.delayed` objects
+        dict of delayed objects where we make the xyz from into a dask   array.
+    lenght : int
+        total length of the final dask array.
+    distance_unit: string
+        distance unit of the filetype to be loaded.
+
+    Returns
+    -------
+    :py:class:`dask.array` or None
+        dask array from the delayed objects for xyz if it can be loaded,
+        None otherwise.
+    """
+
     xyz_list = result_dict.pop('xyz', None)
     if xyz_list is None:
         return None
@@ -142,7 +240,27 @@ def get_xyz(result_dict, length, distance_unit):
     result = make_da(xyz_list, length)
     return result
 
+
 def get_time(result_dict, length, chunk_size):
+    """
+    Makes an  py:class:`dask.array` for time if it can be loaded from the
+    fileformat, otherwise returns None.
+
+    Parameters
+    ----------
+    result_dict: dict of :py:class:`dask.delayed` objects
+        dict of delayed objects where we make the time from into an dask array.
+    lenght : int
+        total length of the final dask array.
+    chunk_size: int
+        length of a single chunk.
+
+    Returns
+    -------
+    :py:class:`dask.array` or None
+        dask array from the delayed objects for time if it can be loaded,
+        None otherwise.
+    """
     time_list = result_dict.pop('time', None)
     if time_list is None:
         # TODO incorporate stride
@@ -151,34 +269,76 @@ def get_time(result_dict, length, chunk_size):
         result = make_da(time_list, length)
     return result
 
+
 def get_unitcell(result_dict, length):
+    """
+    Makes an  py:class:`dask.array` for the unitcell information if it can be
+    loaded from the fileformat, otherwise returns None.
+
+    Parameters
+    ----------
+    result_dict: dict of :py:class:`dask.delayed` objects
+        dict of delayed objects where we make the time from  grab  into an dask
+        array.
+    lenght : int
+        total length of the final dask array.
+
+    Returns
+    -------
+    (unitcell_lengths, unitcell_angles, unitcell_vectors)
+        dask array from the delayed objects for each term if it can be loaded,
+        None otherwise.
+    """
+
     # TODO add ensure type on these lengths
     unitcell_lengths = result_dict.pop('unitcell_lengths', None)
     unitcell_angles = result_dict.pop('unitcell_angles', None)
     unitcell_vectors = result_dict.pop('unitcell_vectors', None)
-    if (unitcell_lengths is None
-        and unitcell_angles is None
-        and unitcell_vectors is None):
+    if (unitcell_lengths is None and unitcell_angles is None and
+            unitcell_vectors is None):
         ul = None
         ua = None
         uv = None
-    elif unitcell_vectors is not None:
-        ul = None
-        ua = None
+        return ul, ua, uv
+
+    # Now if there is info to be loaded
+    if unitcell_vectors is not None:
         uv = make_da(unitcell_vectors, length)
-        return None, None, uv
-    elif unitcell_lengths is not None and unitcell_angles is None:
-        ul = make_da(unitcell_vectors, length)
-        ua = da.ones_like(ul)
-        uv = None
     else:
+        uv = None
+
+    if unitcell_lengths is not None and unitcell_angles is None:
+        ul = make_da(unitcell_lengths, length)
+        ua = da.ones_like(ul)
+    elif unitcell_angles is not None:
         ul = make_da(unitcell_vectors, length)
         ua = make_da(unitcell_angles, length)
-        uv = None
+    else:
+        ul = None
+        ua = None
+
     return ul, ua, uv
 
 
-def read_chunk(filename, extension, chunk_size, start):
+def read_chunk(filename, chunk_size, start):
+    """
+    Read a chunk of the trajectory file.
+
+    Parameters
+    ----------
+    filename: string
+        filename of the file to load
+    chunk_size: int
+        size of the chunk to load
+    start: int
+        frame to start the loading from
+
+    Returns
+    -------
+    A tuple with the data for the read chunk (depending on what
+    filetype.read returns)
+    """
+
     with open(filename) as f:
         # Get current possition
         pos = f.tell()
@@ -194,27 +354,59 @@ def read_chunk(filename, extension, chunk_size, start):
     else:
         return result,
 
+
 class Trajectory(mdtraj.Trajectory):
+    """mdtraj.Trajectory with dask.array properties
+
+    Attributes
+    ----------
+    n_frames : int
+    n_atoms : int
+    n_residues : int
+    time : np.ndarray, shape=(n_frames,)
+    timestep : float
+    topology : md.Topology
+    top : md.Topology
+    xyz : ndarray, shape=(n_frames, n_atoms, 3)
+    unitcell_vectors : {ndarray, shape=(n_frames, 3, 3), None}
+    unitcell_lengths : {ndarray, shape=(n_frames, 3), None}
+    unitcell_angles : {ndarray, shape=(n_frames, 3), None}
+    """
+
     # TODO add other kwargs from MDtraj.trajectory
     def __init__(self, xyz,  topology, time=None, delayed_objects=None,
                  **kwargs):
         dask.persist(**kwargs)
         self._unitcell_vectors = None
-        super(Trajectory, self).__init__(xyz=xyz, topology=topology, **kwargs)
+        super(Trajectory, self).__init__(xyz=xyz, topology=topology, time=time,
+                                         **kwargs)
 
+    def to_mdtraj(self):
+        """Converts self to a mdtraj.Trajectory"""
 
+        self.xyz = np.asarray(self.xyz)
+        self.time = np.asarray(self.time)
+        if self._have_unitcell and self._unitcell_lengths is None:
+            self._calc_length_and_angles(self.unitcell_vectors)
+            self.unitcell_lengths = np.asarray(self.unitcell_lengths)
+            self.unitcell_angles = np.asarray(self.unitcell_angles)
+            # We don't set the vectors here as they are calculated in
+            # mdtraj.Trajectory anyway
+        elif self._have_unitcell:
+            self.unitcell_lengths = np.asarray(self.unitcell_lengths)
+            self.unitcell_angles = np.asarray(self.unitcell_angles)
+        self.__class__ = mdtraj.Trajectory
 
     @property
     def xyz(self):
         """Cartesian coordinates of each atom in each simulation frame
         Returns
         -------
-        xyz : np.ndarray, shape=(n_frames, n_atoms, 3)
-            A three dimensional numpy array, with the cartesian coordinates
+        xyz : ndarray, shape=(n_frames, n_atoms, 3)
+            A three dimensional dask array, with the cartesian coordinates
             of each atoms in each frame.
         """
         return self._xyz
-
 
     @xyz.setter
     def xyz(self, value):
@@ -225,7 +417,6 @@ class Trajectory(mdtraj.Trajectory):
         else:
             shape = (None, None, 3)
 
-        # TODO: make ensure_type work on dask arrays
         value = ensure_type(value, np.float32, 3, 'xyz', shape=shape,
                             warn_on_cast=True,
                             add_newaxis_on_deficient_ndim=True)
@@ -243,7 +434,7 @@ class Trajectory(mdtraj.Trajectory):
         """Angles that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : np.ndarray, shape=(n_frames, 3)
+        lengths : nd.array, shape=(n_frames, 3)
             The angles between the three unitcell vectors in each frame,
             ``alpha``, ``beta``, and ``gamma``. ``alpha' gives the angle
             between vectors ``b`` and ``c``, ``beta`` gives the angle between
@@ -259,21 +450,24 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : np.ndarray, shape=(n_frames, 3)
+        value : ndarray, shape=(n_frames, 3)
             The angles ``alpha``, ``beta`` and ``gamma`` that define the
             shape of the unit cell in each frame. The angles should be in
             degrees.
         """
         self._unitcell_angles = ensure_type(value, np.float32, 2,
-            'unitcell_angles', can_be_none=True, shape=(len(self), 3),
-                warn_on_cast=False, add_newaxis_on_deficient_ndim=True)
+                                            'unitcell_angles',
+                                            can_be_none=True,
+                                            shape=(len(self), 3),
+                                            warn_on_cast=False,
+                                            add_newaxis_on_deficient_ndim=True)
 
     @property
     def unitcell_lengths(self):
         """Lengths that define the shape of the unit cell in each frame.
         Returns
         -------
-        lengths : {np.ndarray, shape=(n_frames, 3), None}
+        lengths : {ndarray, shape=(n_frames, 3), None}
             Lengths of the unit cell in each frame, in nanometers, or None
             if the Trajectory contains no unitcell information.
         """
@@ -286,16 +480,28 @@ class Trajectory(mdtraj.Trajectory):
         """Set the lengths that define the shape of the unit cell in each frame
         Parameters
         ----------
-        value : np.ndarray, shape=(n_frames, 3)
+        value : ndarray, shape=(n_frames, 3)
             The distances ``a``, ``b``, and ``c`` that define the shape of the
             unit cell in each frame, or None
         """
         self._unitcell_lengths = ensure_type(value, np.float32, 2,
-            'unitcell_lengths', can_be_none=True, shape=(len(self), 3),
-            warn_on_cast=False, add_newaxis_on_deficient_ndim=True)
+                                             'unitcell_lengths',
+                                             can_be_none=True,
+                                             shape=(len(self), 3),
+                                             warn_on_cast=False,
+                                             add_newaxis_on_deficient_ndim=True
+                                             )
 
     @property
     def unitcell_vectors(self):
+        """vectors that define the shape of the unit cell in each frame.
+        Returns
+        -------
+        vectors : {ndarray, shape=(n_frames, 3), None}
+            Vecotors of the unit cell in each frame, in nanometers, or None
+            if the Trajectory contains no unitcell information.
+        """
+
         if self._unitcell_vectors is None:
             self._unitcell_vectors = self._calc_unitcell_vectors()
         return self._unitcell_vectors
@@ -304,7 +510,7 @@ class Trajectory(mdtraj.Trajectory):
         """The vectors that define the shape of the unit cell in each frame
         Returns
         -------
-        vectors : np.ndarray, shape(n_frames, 3, 3)
+        vectors : da.ndarray, shape(n_frames, 3, 3)
             Vectors defining the shape of the unit cell in each frame.
             The semantics of this array are that the shape of the unit cell
             in frame ``i`` are given by the three vectors, ``value[i, 0, :]``,
@@ -312,7 +518,6 @@ class Trajectory(mdtraj.Trajectory):
         """
         if self.unitcell_lengths is None or self.unitcell_angles is None:
             return None
-
 
         v1, v2, v3 = lengths_and_angles_to_box_vectors(
             self._unitcell_lengths[:, 0],  # a
@@ -337,7 +542,7 @@ class Trajectory(mdtraj.Trajectory):
             in frame ``i`` are given by the three vectors, ``value[i, 0, :]``,
             ``value[i, 1, :]``, and ``value[i, 2, :]``.
         """
-        if vectors is None:# or da.all(abs(vectors) < 1e-15):
+        if vectors is None:  # or da.all(abs(vectors) < 1e-15):
             self._unitcell_lengths = None
             self._unitcell_angles = None
             return
@@ -349,16 +554,30 @@ class Trajectory(mdtraj.Trajectory):
         v1 = vectors[:, 0, :]
         v2 = vectors[:, 1, :]
         v3 = vectors[:, 2, :]
-        a, b, c, alpha, beta, gamma = box_vectors_to_lengths_and_angles(v1, v2, v3)
+        a, b, c, alpha, beta, gamma = box_vectors_to_lengths_and_angles(v1,
+                                                                        v2,
+                                                                        v3)
 
         self._unitcell_lengths = da.vstack((a, b, c)).T
         self._unitcell_angles = da.vstack((alpha, beta, gamma)).T
 
-
-
     def join(self, other, check_topology=True,
              discard_overlapping_frames=False):
-        """ This is a daskified version of md.Trajectory.join """
+        """This is a daskified version of md.Trajectory.join()
+
+        Parameters
+        ----------
+        other : Trajectory or list of Trajectory
+            One or more trajectories to join with this one. These trajectories
+            are *appended* to the end of this trajectory.
+        check_topology : bool
+            Ensure that the topology of `self` and `other` are identical before
+            joining them. If false, the resulting trajectory will have the
+            topology of `self`.
+        discard_overlapping_frames : bool, optional
+            If True, compare coordinates at trajectory edges to discard
+            overlapping frames.  Default: False.
+        """
 
         if isinstance(other, Trajectory):
             other = [other]
@@ -378,7 +597,7 @@ class Trajectory(mdtraj.Trajectory):
                                  'unitcell')
         else:
             raise TypeError(
-                '`other` must be a list of Trajectory. You supplied %d' %
+                '`other` must be a list of Trajectory. You supplied %s' %
                 type(other))
 
         trajectories = [self] + other
@@ -411,11 +630,11 @@ class Trajectory(mdtraj.Trajectory):
                               unitcell_angles=angles)
 
     def __hash__(self):
-        ''' updated hash to use the name of the dask array'''
+        '''Updated hash function to use the name of the dask arrays'''
         hash_value = hash(self.top)
         # combine with hashes of arrays
-        hash_value ^= self._xyz.name
-        hash_value ^= _hash_numpy_array(self.time)
-        hash_value ^= _hash_numpy_array(self._unitcell_lengths)
-        hash_value ^= _hash_numpy_array(self._unitcell_angles)
+        hash_value ^= hash(self._xyz.name)
+        hash_value ^= hash(self.time.name)
+        hash_value ^= _hash_numpy_array(self.unitcell_lengths.compute())
+        hash_value ^= _hash_numpy_array(self.unitcell_angles.compute())
         return hash_value
