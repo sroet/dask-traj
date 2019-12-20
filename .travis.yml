@@ -18,7 +18,7 @@ env:
 matrix:
   exclude:
     - env: MDTRAJ="dev"
-      python: "3.5"
+      python: "3.6"
 
 before_install:
   - echo "before install"
