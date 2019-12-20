@@ -15,7 +15,13 @@ Trajectory References
 
 Geometry Computations
 ---------------------
-.. automodule:: dask_traj.geometry
+
+.. automodule:: dask_traj.geometry.distance
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: dask_traj.geometry.angle
     :members:
     :undoc-members:
     :show-inheritance:
