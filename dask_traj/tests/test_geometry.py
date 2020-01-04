@@ -76,7 +76,7 @@ class TestGeometry(object):
 
     # Bug in mdtraj should pass once https://github.com/mdtraj/mdtraj/pull/1515
     # is merged in. Then this should be removed.
-    @pytest.mark.xfail(strict=True)
+    @pytest.mark.xfail()
     def test_compute_displacements_empty_pairs(self):
         c = np.array([[1234, -9999]])
         c = c[0:0]
