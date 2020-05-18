@@ -17,7 +17,7 @@ PRE_TYPE = ""  # a, b, or rc (although we rarely release such versions)
 PRE_NUM = 0
 
 # REQUIREMENTS should list any required packages
-REQUIREMENTS=['future', 'mdtraj', 'dask']
+REQUIREMENTS=['future', 'mdtraj', 'dask[array]']
 
 # PACKAGES should list any subpackages of the code. The assumption is that
 # package.subpackage is located at package/subpackage
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         long_description=DESCRIPTION,
         platforms=['Linux', 'Mac OS X', 'Unix', 'Windows'],
         install_requires=REQUIREMENTS,
-        requires=REQUIREMENTS,
+#        requires=REQUIREMENTS,
         tests_require=["pytest", "pytest-cov", "python-coveralls"],
         classifiers=CLASSIFIERS.split('\n')[1:-1]
     )
