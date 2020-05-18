@@ -3,5 +3,5 @@ numpy
 scipy
 pandas
 mdtraj
-dask
+dask[array]
 distributed
