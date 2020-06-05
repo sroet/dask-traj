@@ -74,9 +74,6 @@ class TestGeometry(object):
                                       atom_pairs=c)
         assert 'atom_pairs must be between 0' in str(err.value)
 
-    # Bug in mdtraj should pass once https://github.com/mdtraj/mdtraj/pull/1515
-    # is merged in. Then this should be removed.
-    @pytest.mark.xfail()
     def test_compute_displacements_empty_pairs(self):
         c = np.array([[1234, -9999]])
         c = c[0:0]
