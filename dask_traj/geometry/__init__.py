@@ -1,2 +1,2 @@
-from .distance import *
 from .angle import *
+from .distance import *

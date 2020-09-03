@@ -1,19 +1,28 @@
 # Copy of various mdtraj utils that need to loosen, to work with dask
-import warnings
-import numpy as np
 import collections
-from mdtraj.utils.six.moves import zip_longest
+import warnings
+
 import dask.array as da
+import numpy as np
+from mdtraj.utils.six.moves import zip_longest
 
 
 class TypeCastPerformanceWarning(RuntimeWarning):
     pass
 
 
-def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
-                shape=None, warn_on_cast=True,
-                add_newaxis_on_deficient_ndim=False,
-                cast_da_to_np=False):
+def ensure_type(
+    val,
+    dtype,
+    ndim,
+    name,
+    length=None,
+    can_be_none=False,
+    shape=None,
+    warn_on_cast=True,
+    add_newaxis_on_deficient_ndim=False,
+    cast_da_to_np=False,
+):
     """Typecheck the size, shape and dtype of a numpy array, with optional
     casting.
     Parameters
@@ -81,36 +90,45 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
             # then we should reshape the scalar to be a 1d length-1 array
             val = np.array([val])
         else:
-            raise TypeError(("%s must be numpy array. "
-                             " You supplied type %s" % (name, type(val))))
+            raise TypeError(
+                ("%s must be numpy array. " " You supplied type %s" % (name, type(val)))
+            )
 
     if warn_on_cast and val.dtype != dtype:
-        warnings.warn("Casting %s dtype=%s to %s " % (name, val.dtype, dtype),
-                      TypeCastPerformanceWarning)
+        warnings.warn(
+            "Casting %s dtype=%s to %s " % (name, val.dtype, dtype),
+            TypeCastPerformanceWarning,
+        )
 
     if not val.ndim == ndim:
         if add_newaxis_on_deficient_ndim and val.ndim + 1 == ndim:
             val = val[np.newaxis, ...]
         else:
-            raise ValueError(("%s must be ndim %s. "
-                              "You supplied %s" % (name, ndim, val.ndim)))
+            raise ValueError(
+                ("%s must be ndim %s. " "You supplied %s" % (name, ndim, val.ndim))
+            )
 
-    if (isinstance(val, np.ndarray) or (
-            cast_da_to_np and isinstance(val, da.core.Array))):
+    if isinstance(val, np.ndarray) or (
+        cast_da_to_np and isinstance(val, da.core.Array)
+    ):
         val = np.ascontiguousarray(val, dtype=dtype)
 
     if length is not None and len(val) != length:
-        raise ValueError(("%s must be length %s. "
-                          "You supplied %s" % (name, length, len(val))))
+        raise ValueError(
+            ("%s must be length %s. " "You supplied %s" % (name, length, len(val)))
+        )
 
     if shape is not None:
         # the shape specified given by the user can look like (None, None 3)
         # which indicates that ANY length is accepted in dimension 0 or
         # dimension 1
         sentenel = object()
-        error = ValueError(("%s must be shape %s. You supplied  "
-                            "%s" % (name, str(shape).replace('None', 'Any'),
-                                    val.shape)))
+        error = ValueError(
+            (
+                "%s must be shape %s. You supplied  "
+                "%s" % (name, str(shape).replace("None", "Any"), val.shape)
+            )
+        )
         for a, b in zip_longest(val.shape, shape, fillvalue=sentenel):
             if a is sentenel or b is sentenel:
                 # if the sentenel was reached, it means that the ndim didn't
@@ -125,8 +143,7 @@ def ensure_type(val, dtype, ndim, name, length=None, can_be_none=False,
     return val
 
 
-def lengths_and_angles_to_box_vectors(a_length, b_length, c_length,
-                                      alpha, beta, gamma):
+def lengths_and_angles_to_box_vectors(a_length, b_length, c_length, alpha, beta, gamma):
     """Convert from the lengths/angles of the unit cell to the box
     vectors (Bravais vectors). The angles should be in degrees.
 
@@ -179,25 +196,28 @@ def lengths_and_angles_to_box_vectors(a_length, b_length, c_length,
             angles[i] = np.array([e])
     alpha, beta, gamma = tuple(angles)
 
-    if da.all(alpha < 2*np.pi) and (da.all(beta < 2*np.pi)
-                                    and da.all(gamma < 2*np.pi)):
-        warnings.warn('All your angles were less than 2*pi.'
-                      ' Did you accidentally give me radians?')
+    if da.all(alpha < 2 * np.pi) and (
+        da.all(beta < 2 * np.pi) and da.all(gamma < 2 * np.pi)
+    ):
+        warnings.warn(
+            "All your angles were less than 2*pi."
+            " Did you accidentally give me radians?"
+        )
 
     alpha = alpha * np.pi / 180
     beta = beta * np.pi / 180
     gamma = gamma * np.pi / 180
 
     a = da.stack([a_length, da.zeros_like(a_length), da.zeros_like(a_length)])
-    b = da.stack([b_length*da.cos(gamma),
-                  b_length*da.sin(gamma),
-                  da.zeros_like(b_length)])
-    cx = c_length*da.cos(beta)
-    cy = c_length*(da.cos(alpha) - da.cos(beta)*da.cos(gamma)) / da.sin(gamma)
-    cz = da.sqrt(c_length*c_length - cx*cx - cy*cy)
+    b = da.stack(
+        [b_length * da.cos(gamma), b_length * da.sin(gamma), da.zeros_like(b_length)]
+    )
+    cx = c_length * da.cos(beta)
+    cy = c_length * (da.cos(alpha) - da.cos(beta) * da.cos(gamma)) / da.sin(gamma)
+    cz = da.sqrt(c_length * c_length - cx * cx - cy * cy)
     c = da.stack([cx, cy, cz])
     if not a.shape == b.shape == c.shape:
-        raise TypeError('Shape is messed up.')
+        raise TypeError("Shape is messed up.")
 
     # Make sure that all vector components that are _almost_ 0 are set exactly
     # to 0
@@ -244,23 +264,25 @@ def box_vectors_to_lengths_and_angles(a, b, c):
         angle between vectors **a** and **b**, in degrees.
     """
     if not a.shape == b.shape == c.shape:
-        raise TypeError('Shape is messed up.')
+        raise TypeError("Shape is messed up.")
     if not a.shape[-1] == 3:
-        raise TypeError('The last dimension must be length 3')
+        raise TypeError("The last dimension must be length 3")
     if not (a.ndim in [1, 2]):
-        raise ValueError('vectors must be 1d or 2d (for a vectorized '
-                         'operation on multiple frames)')
-    last_dim = a.ndim-1
+        raise ValueError(
+            "vectors must be 1d or 2d (for a vectorized "
+            "operation on multiple frames)"
+        )
+    last_dim = a.ndim - 1
 
-    a_length = (da.sum(a*a, axis=last_dim))**(1/2)
-    b_length = (da.sum(b*b, axis=last_dim))**(1/2)
-    c_length = (da.sum(c*c, axis=last_dim))**(1/2)
+    a_length = (da.sum(a * a, axis=last_dim)) ** (1 / 2)
+    b_length = (da.sum(b * b, axis=last_dim)) ** (1 / 2)
+    c_length = (da.sum(c * c, axis=last_dim)) ** (1 / 2)
 
     # we allow 2d input, where the first dimension is the frame index
     # so we want to do the dot product only over the last dimension
-    alpha = da.arccos(da.einsum('...i, ...i', b, c) / (b_length * c_length))
-    beta = da.arccos(da.einsum('...i, ...i', c, a) / (c_length * a_length))
-    gamma = da.arccos(da.einsum('...i, ...i', a, b) / (a_length * b_length))
+    alpha = da.arccos(da.einsum("...i, ...i", b, c) / (b_length * c_length))
+    beta = da.arccos(da.einsum("...i, ...i", c, a) / (c_length * a_length))
+    gamma = da.arccos(da.einsum("...i, ...i", a, b) / (a_length * b_length))
 
     # convert to degrees
     alpha = alpha * 180.0 / np.pi

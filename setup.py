@@ -1,10 +1,11 @@
 """
 setup.py for dask_traj
 """
+import inspect
 import os
 import subprocess
-import inspect
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 ####################### USER SETUP AREA #################################
 # * VERSION: base version (do not include .dev0, etc -- that's automatic)
@@ -17,21 +18,21 @@ PRE_TYPE = ""  # a, b, or rc (although we rarely release such versions)
 PRE_NUM = 0
 
 # REQUIREMENTS should list any required packages
-REQUIREMENTS=['mdtraj', 'dask[array]']
+REQUIREMENTS = ["mdtraj", "dask[array]"]
 
 # PACKAGES should list any subpackages of the code. The assumption is that
 # package.subpackage is located at package/subpackage
-PACKAGES=find_packages()
+PACKAGES = find_packages()
 
 # This DESCRIPTION is only used if a README.rst hasn't been made from the
 # markdown version
-DESCRIPTION="""
+DESCRIPTION = """
 Parallel implementation for MDTraj, using Dask
 """
-SHORT_DESCRIPTION="Parallel MDTraj, using Dask"
+SHORT_DESCRIPTION = "Parallel MDTraj, using Dask"
 
 # note: leave the triple quotes on separate lines from the classifiers
-CLASSIFIERS="""
+CLASSIFIERS = """
 Development Status :: 4 - Beta
 Intended Audience :: Science/Research
 License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
@@ -54,8 +55,8 @@ if not IS_RELEASE:
     PACKAGE_VERSION += ".dev" + str(DEV_NUM)
 __version__ = PACKAGE_VERSION
 
-if os.path.isfile('README.rst'):
-    DESCRIPTION = open('README.rst').read()
+if os.path.isfile("README.rst"):
+    DESCRIPTION = open("README.rst").read()
 
 ################################################################################
 # Writing version control information to the module
@@ -72,29 +73,32 @@ def get_git_version():
     def _minimal_ext_cmd(cmd):
         # construct minimal environment
         env = {}
-        for k in ['SYSTEMROOT', 'PATH']:
+        for k in ["SYSTEMROOT", "PATH"]:
             v = os.environ.get(k)
             if v is not None:
                 env[k] = v
         # LANGUAGE is used on win32
-        env['LANGUAGE'] = 'C'
-        env['LANG'] = 'C'
-        env['LC_ALL'] = 'C'
-        with open(os.devnull, 'w') as err_out:
-            out = subprocess.Popen(cmd,
-                                   stdout=subprocess.PIPE,
-                                   stderr=err_out, # maybe debug later?
-                                   env=env).communicate()[0]
+        env["LANGUAGE"] = "C"
+        env["LANG"] = "C"
+        env["LC_ALL"] = "C"
+        with open(os.devnull, "w") as err_out:
+            out = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=err_out,  # maybe debug later?
+                env=env,
+            ).communicate()[0]
         return out
 
     try:
         git_dir = os.path.dirname(os.path.realpath(__file__))
-        out = _minimal_ext_cmd(['git', '-C', git_dir, 'rev-parse', 'HEAD'])
-        GIT_REVISION = out.strip().decode('ascii')
+        out = _minimal_ext_cmd(["git", "-C", git_dir, "rev-parse", "HEAD"])
+        GIT_REVISION = out.strip().decode("ascii")
     except OSError:
-        GIT_REVISION = 'Unknown'
+        GIT_REVISION = "Unknown"
 
     return GIT_REVISION
+
 
 # TODO: this may get moved into another file
 VERSION_PY_CONTENT = """
@@ -130,23 +134,24 @@ if not release:
     version = full_version
 """
 
+
 def write_version_py(filename):
     # Adding the git rev number needs to be done inside write_version_py(),
     # otherwise the import of numpy.version messes up the build under Python 3.
     git_version_code = inspect.getsource(get_git_version)
-    if os.path.exists('.git'):
+    if os.path.exists(".git"):
         GIT_REVISION = get_git_version()
     else:
-        GIT_REVISION = 'Unknown'
+        GIT_REVISION = "Unknown"
 
     content = VERSION_PY_CONTENT % {
-        'version': PACKAGE_VERSION,
-        'git_revision': GIT_REVISION,
-        'is_release': str(IS_RELEASE),
-        'git_version_code': str(git_version_code)
+        "version": PACKAGE_VERSION,
+        "git_revision": GIT_REVISION,
+        "is_release": str(IS_RELEASE),
+        "git_version_code": str(git_version_code),
     }
 
-    with open(filename, 'w') as version_file:
+    with open(filename, "w") as version_file:
         version_file.write(content)
 
 
@@ -154,7 +159,7 @@ def write_version_py(filename):
 # Installation
 ################################################################################
 if __name__ == "__main__":
-    write_version_py(os.path.join('dask_traj', 'version.py'))
+    write_version_py(os.path.join("dask_traj", "version.py"))
     setup(
         name="dask_traj",
         author="Sander Roet",
@@ -163,17 +168,15 @@ if __name__ == "__main__":
         license="LGPL-2.1+",
         url="http://github.com/sroet/dask-traj",
         packages=PACKAGES,
-        package_dir={p: '/'.join(p.split('.')) for p in PACKAGES},
-        package_data={'dask_traj': ['tests/*pdb',
-                                    'tests/*xtc',
-                                    'tests/*xyz']},
+        package_dir={p: "/".join(p.split(".")) for p in PACKAGES},
+        package_data={"dask_traj": ["tests/*pdb", "tests/*xtc", "tests/*xyz"]},
         ext_modules=[],
         scripts=[],
         description=SHORT_DESCRIPTION,
         long_description=DESCRIPTION,
-        platforms=['Linux', 'Mac OS X', 'Unix', 'Windows'],
+        platforms=["Linux", "Mac OS X", "Unix", "Windows"],
         install_requires=REQUIREMENTS,
-#        requires=REQUIREMENTS,
+        #        requires=REQUIREMENTS,
         tests_require=["pytest", "pytest-cov", "python-coveralls"],
-        classifiers=CLASSIFIERS.split('\n')[1:-1]
+        classifiers=CLASSIFIERS.split("\n")[1:-1],
     )

@@ -5,6 +5,6 @@ except ImportError:  # pragma: no cover
 
 __version__ = version.version
 
-from .utils import ensure_type
-from .geometry import *
 from .core import *
+from .geometry import *
+from .utils import ensure_type

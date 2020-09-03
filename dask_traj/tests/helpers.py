@@ -2,14 +2,14 @@ from numpy.testing import assert_equal
 
 
 def function_test(dask_trj, md_trj, funcname, **kwargs):
-    if '.' in funcname:
-        funcmod, funcn = funcname.rsplit('.', 1)
-        dmdfuncmod = 'dask_traj.{}'.format(funcmod)
-        mdfuncmod = 'mdtraj.{}'.format(funcmod)
+    if "." in funcname:
+        funcmod, funcn = funcname.rsplit(".", 1)
+        dmdfuncmod = "dask_traj.{}".format(funcmod)
+        mdfuncmod = "mdtraj.{}".format(funcmod)
     else:
         funcn = funcname
-        dmdfuncmod = 'dask_traj'
-        mdfuncmod = 'mdtraj'
+        dmdfuncmod = "dask_traj"
+        mdfuncmod = "mdtraj"
 
     dmdfunc = getattr(__import__(dmdfuncmod), funcn)
     mdfunc = getattr(__import__(mdfuncmod), funcn)
