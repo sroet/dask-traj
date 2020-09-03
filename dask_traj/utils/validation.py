@@ -1,5 +1,4 @@
 # Copy of various mdtraj utils that need to loosen, to work with dask
-from __future__ import print_function, division
 import warnings
 import numpy as np
 import collections
