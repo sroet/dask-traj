@@ -1,5 +1,8 @@
 [![Build Status](https://travis-ci.org/sroet/dask-traj.svg?branch=master)](https://travis-ci.org/sroet/dask-traj)
 [![Documentation Status](https://readthedocs.org/projects/dask-traj/badge/?version=latest)](https://dask-traj.readthedocs.io/en/latest/?badge=latest)
+[![DOI](https://zenodo.org/badge/138187191.svg)](https://zenodo.org/badge/latestdoi/138187191)
+
+
 # dask-traj
 This is a parallel implementation of parts of [MDTraj](https://mdtraj.org/), using [dask](https://dask.org/).  
 
