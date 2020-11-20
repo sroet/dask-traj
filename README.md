@@ -1,3 +1,4 @@
+[![Build Status](https://dev.azure.com/sroet/dask-traj/_apis/build/status/sroet.dask-traj?branchName=master)](https://dev.azure.com/sroet/dask-traj/_build/latest?definitionId=1&branchName=master)
 [![Build Status](https://travis-ci.com/sroet/dask-traj.svg?branch=master)](https://travis-ci.com/sroet/dask-traj)
 [![Documentation Status](https://readthedocs.org/projects/dask-traj/badge/?version=latest)](https://dask-traj.readthedocs.io/en/latest/?badge=latest)
 [![DOI](https://zenodo.org/badge/138187191.svg)](https://zenodo.org/badge/latestdoi/138187191)
